@@ -14,6 +14,10 @@
 #include <mln/style/expression/dsl.hpp>
 #include <mln/renderer/renderer.hpp>
 #include <mln/gfx/headless_frontend.hpp>
+#include <mln/util/projection.hpp>
+
+#include <map>
+#include <set>
 
 using namespace mln;
 using namespace mln::style;
@@ -319,4 +323,102 @@ TEST(Query, QueryFeatureExtensionsSuperclusterLeaves) {
     EXPECT_EQ(offsetLeaves3[0].properties["name"].get<std::string>(), "Cape Hatteras"s);
     EXPECT_EQ(offsetLeaves3[1].properties["name"].get<std::string>(), "Cape Sable"s);
     EXPECT_EQ(offsetLeaves3[2].properties["name"].get<std::string>(), "Cape Cod"s);
+}
+
+namespace {
+
+// A line from Vienna to Budapest, a circle at Szeged and an area south of the line.
+constexpr auto journeyStyle = R"STYLE({
+  "version": 8,
+  %PROJECTION%
+  "sources": {
+    "journey": {
+      "type": "geojson",
+      "data": {
+        "type": "FeatureCollection",
+        "features": [
+          {"type": "Feature", "id": 1, "properties": {},
+           "geometry": {"type": "LineString", "coordinates": [[16.37, 48.21], [19.04, 47.50]]}},
+          {"type": "Feature", "id": 2, "properties": {},
+           "geometry": {"type": "Point", "coordinates": [20.15, 46.25]}},
+          {"type": "Feature", "id": 3, "properties": {},
+           "geometry": {"type": "Polygon", "coordinates": [[[17.0, 45.8], [18.0, 45.8], [18.0, 46.6], [17.0, 46.6], [17.0, 45.8]]]}}
+        ]
+      }
+    }
+  },
+  "layers": [
+    {"id": "area", "type": "fill", "source": "journey", "filter": ["==", ["geometry-type"], "Polygon"]},
+    {"id": "line", "type": "line", "source": "journey", "filter": ["==", ["geometry-type"], "LineString"],
+     "paint": {"line-width": 6}},
+    {"id": "stop", "type": "circle", "source": "journey", "filter": ["==", ["geometry-type"], "Point"],
+     "paint": {"circle-radius": 8}}
+  ]
+})STYLE";
+
+class JourneyQueryTest {
+public:
+    explicit JourneyQueryTest(bool globe) {
+        std::string style = journeyStyle;
+        style.replace(style.find("%PROJECTION%"),
+                      std::string_view("%PROJECTION%").size(),
+                      globe ? R"("projection": {"type": "globe"},)" : "");
+        map.getStyle().loadJSON(style);
+        map.jumpTo(CameraOptions().withCenter(LatLng{47.2, 17.7}).withZoom(5.0));
+        frontend.render(map);
+    }
+
+    /// The layers of the journey's features in the box; each feature is drawn by one layer only.
+    std::set<std::string> layersAt(const ScreenBox& box) {
+        static const std::map<uint64_t, std::string> layerOf{{1, "line"}, {2, "stop"}, {3, "area"}};
+        std::set<std::string> layers;
+        for (const auto& feature :
+             frontend.getRenderer()->queryRenderedFeatures(box, {{{"area", "line", "stop"}}, {}})) {
+            layers.insert(layerOf.at(feature.id.get<uint64_t>()));
+        }
+        return layers;
+    }
+
+    std::set<std::string> layersAt(const LatLng& latLng) {
+        const ScreenCoordinate point = map.pixelForLatLng(latLng);
+        return layersAt(ScreenBox{{point.x - 2, point.y - 2}, {point.x + 2, point.y + 2}});
+    }
+
+    util::RunLoop loop;
+    std::shared_ptr<StubFileSource> fileSource = std::make_shared<StubFileSource>();
+    HeadlessFrontend frontend{{512, 512}, 1};
+    MapAdapter map{frontend,
+                   MapObserver::nullObserver(),
+                   fileSource,
+                   MapOptions().withMapMode(MapMode::Static).withSize(frontend.getSize())};
+};
+
+// The ground point halfway along the line as the tiles store it: straight in Mercator between its two ends.
+LatLng lineMidpoint() {
+    const auto a = mln::Projection::project(LatLng{48.21, 16.37}, 1.0);
+    const auto b = mln::Projection::project(LatLng{47.50, 19.04}, 1.0);
+    return mln::Projection::unproject((a + b) / 2.0, 1.0);
+}
+
+} // namespace
+
+TEST(Query, QueryRenderedFeaturesOnMercator) {
+    JourneyQueryTest test(false);
+    const std::set<std::string> all{"area", "line", "stop"};
+    EXPECT_EQ(all, test.layersAt(ScreenBox{{0, 0}, {512, 512}}));
+    EXPECT_EQ(std::set<std::string>{"line"}, test.layersAt(lineMidpoint()));
+    EXPECT_EQ(std::set<std::string>{"stop"}, test.layersAt(LatLng{46.25, 20.15}));
+    EXPECT_EQ(std::set<std::string>{"area"}, test.layersAt(LatLng{46.2, 17.5}));
+    EXPECT_TRUE(test.layersAt(LatLng{45.0, 21.0}).empty());
+}
+
+// On the globe the query finds lines, fills and circles too, not only symbols.
+TEST(Query, QueryRenderedFeaturesOnTheGlobe) {
+    JourneyQueryTest test(true);
+    const std::set<std::string> all{"area", "line", "stop"};
+    EXPECT_EQ(all, test.layersAt(ScreenBox{{0, 0}, {512, 512}}));
+    EXPECT_EQ(std::set<std::string>{"line"}, test.layersAt(lineMidpoint()));
+    EXPECT_EQ(std::set<std::string>{"stop"}, test.layersAt(LatLng{46.25, 20.15}));
+    EXPECT_EQ(std::set<std::string>{"area"}, test.layersAt(LatLng{46.2, 17.5}));
+    EXPECT_TRUE(test.layersAt(LatLng{45.0, 21.0}).empty());
 }
