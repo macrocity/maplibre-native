@@ -2,7 +2,7 @@
   "version": 8,
   "metadata": {
     "test": {
-      "description": "The checkerboard just below zoom 7, from a source with bounds: the globe cover asks for the zoom 7 tiles nearest the camera before the zoom reaches 7, and a bounded source must still create them; refused, the map is empty.",
+      "description": "The checkerboard just below zoom 7, pitched, from a source with bounds: the globe cover asks for the zoom 7 tiles nearest the camera (the lower half) before the zoom reaches 7, and a bounded source must still create them; refused, the lower half is empty. Looking straight down, the cover keeps zoom 6 up to 7. This fixture draws its checkerboard in zoom 7 tiles only.",
       "width": 256,
       "height": 256
     }
@@ -15,6 +15,7 @@
     61.59
   ],
   "zoom": 6.95,
+  "pitch": 30,
   "projection": {
     "type": "globe"
   },

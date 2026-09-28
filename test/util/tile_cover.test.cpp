@@ -1,7 +1,11 @@
 #include <mln/util/tile_cover.hpp>
 #include <mln/util/geo.hpp>
 #include <mln/map/transform.hpp>
+#include <mln/style/projection.hpp>
 #include <mln/style/projection_definition.hpp>
+#include <mln/style/projection_impl.hpp>
+#include <mln/util/constants.hpp>
+#include <mln/util/projection.hpp>
 #include <mln/math/angles.hpp>
 
 #include <algorithm>
@@ -756,4 +760,45 @@ TEST(TileCover, GlobeCoverSurvivesTheAntimeridian) {
     std::sort(after.begin(), after.end());
     EXPECT_EQ(before, after);
     EXPECT_EQ(4u, after.size());
+}
+
+// A style's `globe` projection hands over to Mercator at zoom 12. Each tile is laid out with the style layers of its
+// own zoom, so a globe tile finer than the map's zoom has no bucket for a layer that ends at the tile's zoom, while the
+// layer that starts there is still hidden. The minor streets of Budapest vanished from 11.93 to 12 that way
+// (https://github.com/macrocity/app/issues/613). Looking straight down, the globe loads the flat map's tile zoom at its
+// center, which never goes down as the map zooms in, and nothing finer.
+TEST(TileCover, GlobeTileZoomFollowsTheMapZoomUpToTheHandOver) {
+    style::Projection projection;
+    projection.setType(style::PropertyValue<ProjectionDefinition>(ProjectionDefinition("globe")));
+    const LatLng budapest{47.495, 19.05};
+    const Point<double> center = Projection::project(budapest, 1.0 / util::tileSize_D);
+
+    int32_t previous = 0;
+    for (int step = 100; step <= 1210; ++step) {
+        const double zoom = step / 100.0;
+        Transform transform;
+        transform.resize({402, 874});
+        // As `Map` does: the projection at this zoom goes in before the camera.
+        transform.setProjectionDefinition(projection.impl->evaluate(static_cast<float>(zoom)));
+        transform.jumpTo(CameraOptions().withCenter(budapest).withZoom(zoom));
+        ASSERT_EQ(zoom < 12, transform.getState().isGlobeRendering()) << "zoom " << zoom;
+
+        const int32_t flatZoom = util::coveringZoomLevel(zoom, style::SourceType::Vector, util::tileSize_I);
+        const auto cover = util::tileCover(
+            {transform.getState()}, static_cast<uint8_t>(flatZoom), Range<uint8_t>(0, 15));
+        const auto atCenter = std::ranges::find_if(cover, [&](const OverscaledTileID& id) {
+            const double tiles = std::pow(2.0, id.canonical.z);
+            return id.canonical.x == static_cast<uint32_t>(center.x * tiles) &&
+                   id.canonical.y == static_cast<uint32_t>(center.y * tiles);
+        });
+        ASSERT_NE(cover.end(), atCenter) << "zoom " << zoom;
+        const int32_t centerZoom = atCenter->canonical.z;
+
+        EXPECT_GE(centerZoom, previous) << "zoom " << zoom;
+        EXPECT_EQ(flatZoom, centerZoom) << "zoom " << zoom;
+        for (const auto& id : cover) {
+            EXPECT_LE(id.canonical.z, flatZoom) << "zoom " << zoom << ", tile " << id;
+        }
+        previous = centerZoom;
+    }
 }

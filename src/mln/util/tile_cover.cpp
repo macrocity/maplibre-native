@@ -499,7 +499,16 @@ std::vector<OverscaledTileID> tileCover(const TileCoverParameters& state,
         double desiredZ = z;
         if (allowVariableZoom) {
             const double distToTile2d = distanceToTile2d(cameraCoord[0], cameraCoord[1], tile);
-            desiredZ = std::floor(tileZoom(requestedCenterZoom, distToTile2d, distanceZ, distanceToCenter3d));
+            // The zoom function divides the distance by cos(fov / 2), so a tile a little farther away than the center
+            // keeps the center's zoom. That lift may keep a tile at the nominal zoom, but not take it finer than its
+            // distance alone does. At the center it would lift the tile zoom 0.08 above the map's, so from x.93 the
+            // globe loaded the next zoom's tiles: a style layer that ends at that zoom has no bucket in them, and the
+            // layer that starts there is hidden until the map reaches it. Minor streets vanished from 11.93 to the
+            // hand-over to Mercator at 12 (https://github.com/macrocity/app/issues/613).
+            const double byDistance = std::floor(requestedCenterZoom +
+                                                 std::log2(distanceToCenter3d / std::hypot(distToTile2d, distanceZ)));
+            desiredZ = std::min(std::floor(tileZoom(requestedCenterZoom, distToTile2d, distanceZ, distanceToCenter3d)),
+                                std::max(static_cast<double>(z), byDistance));
         }
         const auto targetZoom = static_cast<uint8_t>(std::clamp(desiredZ, 0.0, static_cast<double>(maxZoom)));
 
