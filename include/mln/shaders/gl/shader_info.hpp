@@ -206,6 +206,27 @@ struct ShaderInfo<BuiltIn::LocationIndicatorTexturedShader, gfx::Backend::Type::
 };
 
 template <>
+struct ShaderInfo<BuiltIn::VehicleModelShader, gfx::Backend::Type::OpenGL> {
+    static const std::vector<AttributeInfo> attributes;
+    static const std::vector<UniformBlockInfo> uniformBlocks;
+    static const std::vector<TextureInfo> textures;
+};
+
+template <>
+struct ShaderInfo<BuiltIn::VehicleModelShadowShader, gfx::Backend::Type::OpenGL> {
+    static const std::vector<AttributeInfo> attributes;
+    static const std::vector<UniformBlockInfo> uniformBlocks;
+    static const std::vector<TextureInfo> textures;
+};
+
+template <>
+struct ShaderInfo<BuiltIn::VehicleModelLabelShader, gfx::Backend::Type::OpenGL> {
+    static const std::vector<AttributeInfo> attributes;
+    static const std::vector<UniformBlockInfo> uniformBlocks;
+    static const std::vector<TextureInfo> textures;
+};
+
+template <>
 struct ShaderInfo<BuiltIn::RasterShader, gfx::Backend::Type::OpenGL> {
     static const std::vector<AttributeInfo> attributes;
     static const std::vector<UniformBlockInfo> uniformBlocks;

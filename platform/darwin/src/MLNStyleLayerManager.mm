@@ -11,6 +11,7 @@
 #import "MLNLineStyleLayer_Private.h"
 #import "MLNRasterStyleLayer_Private.h"
 #import "MLNSymbolStyleLayer_Private.h"
+#import "MLNVehicleModelStyleLayer_Private.h"
 
 #include <vector>
 
@@ -72,6 +73,8 @@ LayerManagerDarwin::LayerManagerDarwin() {
 #elif !defined(MBGL_LAYER_CUSTOM_DISABLE_ALL)
   addLayerType(std::make_unique<CustomStyleLayerPeerFactory>());
 #endif
+
+  addLayerType(std::make_unique<VehicleModelStyleLayerPeerFactory>());
 }
 
 LayerManagerDarwin::~LayerManagerDarwin() = default;
