@@ -11,6 +11,7 @@
 #include <mln/util/projection.hpp>
 #include <mln/util/tile_coordinate.hpp>
 
+#include <cmath>
 #include <numbers>
 
 using namespace std::numbers;
@@ -892,11 +893,17 @@ TileCoordinate TransformState::screenCoordinateToTileCoordinate(const ScreenCoor
     }
 
     if (isGlobeRendering()) {
-        const Point<double> p = Projection::project(VerticalPerspectiveProjection::screenCoordinateToLatLng(
-                                                        *this, point, LatLng::Unwrapped),
-                                                    scale) /
-                                util::tileSize_D * static_cast<double>(1 << atZoom);
-        return {.p = {p.x, p.y}, .z = static_cast<double>(atZoom)};
+        // The ground under the pixel in tiles of `atZoom`, as below: the world is 2^atZoom tiles wide, whatever the
+        // camera's zoom. Measuring it at the camera's scale put a query box 2^zoom times too far from the origin, so
+        // it missed every rendered tile and the feature query found no line, fill or circle.
+        const LatLng ground = VerticalPerspectiveProjection::screenCoordinateToLatLng(*this, point, LatLng::Unwrapped);
+        // The globe keeps each tile at the wrap nearest to the center, so a point past the antimeridian keeps its
+        // longitude within half a world of the center rather than jumping to the far edge of the world.
+        const double centerLongitude = getLatLng(LatLng::Unwrapped).longitude();
+        const LatLng nearCenter{ground.latitude(),
+                                centerLongitude + std::remainder(ground.longitude() - centerLongitude, 360.0),
+                                LatLng::Unwrapped};
+        return {.p = Projection::project(nearCenter, static_cast<int32_t>(atZoom)), .z = static_cast<double>(atZoom)};
     }
 
     float targetZ = 0;

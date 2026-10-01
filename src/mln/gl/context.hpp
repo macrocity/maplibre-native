@@ -98,7 +98,7 @@ public:
     void setScissorTest(const gfx::ScissorRect&);
     bool hasStencilBuffer() const;
 
-    void draw(const gfx::DrawMode&, std::size_t indexOffset, std::size_t indexLength);
+    void draw(const gfx::DrawMode&, std::size_t indexOffset, std::size_t indexLength, std::size_t instanceCount = 1);
 
     /// Writes each tile's clip value into the stencil buffer over its pole-capped globe mesh.
     bool renderGlobeTileClippingMasks(PaintParameters&, RenderStaticData&, const std::vector<gfx::GlobeClipMask>&);

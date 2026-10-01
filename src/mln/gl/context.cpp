@@ -777,7 +777,10 @@ std::shared_ptr<gl::Fence> Context::getCurrentFrameFence() const {
     return frameInFlightFence;
 }
 
-void Context::draw(const gfx::DrawMode& drawMode, std::size_t indexOffset, std::size_t indexLength) {
+void Context::draw(const gfx::DrawMode& drawMode,
+                   std::size_t indexOffset,
+                   std::size_t indexLength,
+                   std::size_t instanceCount) {
     MLN_TRACE_FUNC();
     MLN_TRACE_FUNC_GL();
 
@@ -793,10 +796,19 @@ void Context::draw(const gfx::DrawMode& drawMode, std::size_t indexOffset, std::
             break;
     }
 
-    MBGL_CHECK_ERROR(glDrawElements(Enum<gfx::DrawModeType>::to(drawMode.type),
-                                    static_cast<GLsizei>(indexLength),
-                                    GL_UNSIGNED_SHORT,
-                                    reinterpret_cast<GLvoid*>(sizeof(uint16_t) * indexOffset)));
+    if (instanceCount == 1) {
+        MBGL_CHECK_ERROR(glDrawElements(Enum<gfx::DrawModeType>::to(drawMode.type),
+                                        static_cast<GLsizei>(indexLength),
+                                        GL_UNSIGNED_SHORT,
+                                        reinterpret_cast<GLvoid*>(sizeof(uint16_t) * indexOffset)));
+    } else {
+        // Instances that read their own data by gl_InstanceID (the vehicle models); OpenGL ES 3.0 has it.
+        MBGL_CHECK_ERROR(glDrawElementsInstanced(Enum<gfx::DrawModeType>::to(drawMode.type),
+                                                 static_cast<GLsizei>(indexLength),
+                                                 GL_UNSIGNED_SHORT,
+                                                 reinterpret_cast<GLvoid*>(sizeof(uint16_t) * indexOffset),
+                                                 static_cast<GLsizei>(instanceCount)));
+    }
 
     stats.numDrawCalls++;
     stats.totalDrawCalls++;

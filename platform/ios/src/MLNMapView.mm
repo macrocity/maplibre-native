@@ -2179,6 +2179,12 @@ public:
   return _changeDelimiterSuppressionDepth > 0;
 }
 
+/// A camera change made in code while `quietsProgrammaticCameraChanges` is set: the delegate is not told.
+- (BOOL)isQuietCameraChange {
+  return self.quietsProgrammaticCameraChanges &&
+         (self.cameraChangeReasonBitmask & ~MLNCameraChangeReasonProgrammatic) == 0;
+}
+
 - (BOOL)_shouldChangeFromCamera:(nonnull MLNMapCamera *)oldCamera
                        toCamera:(nonnull MLNMapCamera *)newCamera {
   // Check delegates first
@@ -6773,7 +6779,7 @@ static void *windowScreenContext = &windowScreenContext;
     }
   }
 
-  if (![self isSuppressingChangeDelimiters]) {
+  if (![self isSuppressingChangeDelimiters] && ![self isQuietCameraChange]) {
     if ([self.delegate respondsToSelector:@selector(mapView:
                                               regionWillChangeWithReason:animated:)]) {
       [self.delegate mapView:self
@@ -6793,6 +6799,9 @@ static void *windowScreenContext = &windowScreenContext;
   [self updateCompass];
   [self updateScaleBar];
 
+  if ([self isQuietCameraChange]) {
+    return;
+  }
   if ([self.delegate respondsToSelector:@selector(mapView:regionIsChangingWithReason:)]) {
     [self.delegate mapView:self regionIsChangingWithReason:self.cameraChangeReasonBitmask];
   } else if ([self.delegate respondsToSelector:@selector(mapViewRegionIsChanging:)]) {
@@ -6808,6 +6817,10 @@ static void *windowScreenContext = &windowScreenContext;
   [self updateCompass];
   [self updateScaleBar];
 
+  if ([self isQuietCameraChange]) {
+    [self resetCameraChangeReason];
+    return;
+  }
   if (![self isSuppressingChangeDelimiters]) {
     BOOL respondsToSelector = [self.delegate respondsToSelector:@selector(mapView:
                                                                     regionDidChangeAnimated:)];

@@ -7,6 +7,9 @@
 #include <mln/util/constants.hpp>
 #include <mln/util/geometry.hpp>
 #include <mln/util/tile_coordinate.hpp>
+#include <mln/style/projection_definition.hpp>
+
+#include <cmath>
 
 using namespace mln;
 
@@ -110,4 +113,63 @@ TEST(TileCoordinate, ToGeometryCoordinate) {
             ASSERT_DOUBLE_EQ(point.y, tilePointY);
         }
     }
+}
+
+namespace {
+
+void setUpGlobe(Transform& transform, const LatLng& center, double zoom) {
+    transform.resize({800, 600});
+    transform.setProjectionDefinition(ProjectionDefinition("vertical-perspective"));
+    transform.jumpTo(CameraOptions().withCenter(center).withZoom(zoom));
+}
+
+} // namespace
+
+// The feature query turns its screen box into tile coordinates with `fromScreenCoordinate`. On the globe the result
+// must be the tile coordinate of the ground under the pixel at the zoom asked for, as on Mercator, or the box misses
+// every rendered tile and the query finds no line, fill or circle.
+TEST(TileCoordinate, FromScreenCoordinateOnTheGlobe) {
+    for (const double zoom : {0.5, 2.0, 5.0, 8.5, 11.0}) {
+        Transform transform;
+        setUpGlobe(transform, {47.5, 19.0}, zoom);
+        const TransformState& state = transform.getState();
+        ASSERT_TRUE(state.isGlobeRendering());
+        const double height = state.getSize().height;
+
+        for (const ScreenCoordinate& point : {ScreenCoordinate{400, 300},
+                                              ScreenCoordinate{120, 80},
+                                              ScreenCoordinate{700, 520},
+                                              ScreenCoordinate{400, 10}}) {
+            // `Transform` takes a top-left pixel; `TransformState`, and so the query, a bottom-left one.
+            const LatLng latLng = transform.screenCoordinateToLatLng(point, LatLng::Unwrapped);
+            for (const uint8_t atZoom : {0, 5, 12}) {
+                const auto expected = TileCoordinate::fromLatLng(atZoom, latLng);
+                const auto actual = TileCoordinate::fromScreenCoordinate(state, atZoom, {point.x, height - point.y});
+                EXPECT_DOUBLE_EQ(atZoom, actual.z);
+                EXPECT_NEAR(expected.p.x, actual.p.x, 1e-6 * std::pow(2.0, atZoom))
+                    << "zoom " << zoom << " at zoom " << int(atZoom) << " point " << point.x << "," << point.y;
+                EXPECT_NEAR(expected.p.y, actual.p.y, 1e-6 * std::pow(2.0, atZoom))
+                    << "zoom " << zoom << " at zoom " << int(atZoom) << " point " << point.x << "," << point.y;
+            }
+        }
+    }
+}
+
+// Across the antimeridian the tiles the globe draws keep the wrap nearest to the center, so a query point there keeps
+// its longitude within half a world of the center instead of jumping to the far edge of the world.
+TEST(TileCoordinate, FromScreenCoordinateOnTheGlobeAcrossTheAntimeridian) {
+    Transform transform;
+    setUpGlobe(transform, {0.0, 179.0}, 4.0);
+    const TransformState& state = transform.getState();
+    const double height = state.getSize().height;
+    const uint8_t atZoom = 4;
+    const double worldTiles = std::pow(2.0, atZoom);
+
+    // Right of the center is east, past 180°: beyond the right edge of the world at wrap 0.
+    const auto east = TileCoordinate::fromScreenCoordinate(state, atZoom, {700, height / 2});
+    EXPECT_GT(east.p.x, worldTiles);
+    EXPECT_LT(east.p.x, worldTiles * 1.25);
+    const auto west = TileCoordinate::fromScreenCoordinate(state, atZoom, {100, height / 2});
+    EXPECT_LT(west.p.x, worldTiles);
+    EXPECT_GT(west.p.x, worldTiles * 0.75);
 }

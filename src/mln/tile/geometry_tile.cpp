@@ -527,7 +527,11 @@ void GeometryTile::queryRenderedFeatures(std::unordered_map<std::string, std::ve
 
     const float queryPadding = getQueryPadding(layers);
 
-    const mat4 posMatrix = transformState.getProjectionData(id.toUnwrapped(), projMatrix).mainMatrix;
+    // The feature index takes tile coordinates through this matrix to measure viewport-aligned circles in pixels. On
+    // the globe the main matrix takes points of the unit sphere instead, so the query uses the Mercator matrix the
+    // globe falls back to; the query geometry goes through the same matrix, and the two scales meet at the center.
+    const ProjectionData projection = transformState.getProjectionData(id.toUnwrapped(), projMatrix);
+    const mat4& posMatrix = transformState.isGlobeRendering() ? projection.fallbackMatrix : projection.mainMatrix;
 
     layoutResult->featureIndex->query(result,
                                       queryGeometry,

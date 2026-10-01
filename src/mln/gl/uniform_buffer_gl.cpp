@@ -136,7 +136,8 @@ void UniformBufferGL::update(const void* data, std::size_t dataSize) {
         return;
     }
 
-    if (std::memcmp(data, managedBuffer.getContents().data(), dataSize) == 0) {
+    // Only a managed allocation keeps a copy of its contents to compare with; a large buffer has none.
+    if (isManagedAllocation && std::memcmp(data, managedBuffer.getContents().data(), dataSize) == 0) {
         return;
     }
 
