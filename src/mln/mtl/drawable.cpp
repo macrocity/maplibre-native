@@ -265,6 +265,17 @@ void Drawable::draw(PaintParameters& parameters) const {
         }
         renderPass.setDepthStencilState(impl->depthStencilState);
         renderPass.setStencilReference(impl->previousStencilMode.ref);
+    } else if (!enableStencil) {
+        // A 3D drawable outside a tile layer group (the vehicle models) has no group to set its depth test: it takes
+        // the one of the 3D buildings, with its own depth mask, whatever 2D layer order it stands at.
+        if (!impl->depthStencilState) {
+            const auto depthMode = getEnableDepth()
+                                       ? gfx::DepthMode{.func = gfx::DepthFunctionType::LessEqual, .mask = getDepthType()}
+                                       : gfx::DepthMode::disabled();
+            impl->depthStencilState = context.makeDepthStencilState(
+                depthMode, gfx::StencilMode::disabled(), renderable);
+        }
+        renderPass.setDepthStencilState(impl->depthStencilState);
     }
 
     for (const auto& seg_ : impl->segments) {

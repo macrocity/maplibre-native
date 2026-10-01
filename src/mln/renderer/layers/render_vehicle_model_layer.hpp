@@ -61,7 +61,6 @@ private:
     void evaluate(const PropertyEvaluationParameters&) override;
     bool hasTransition() const override { return moving; }
     bool hasCrossfade() const override { return false; }
-    bool is3D() const override { return true; }
     void prepare(const LayerPrepareParameters&) override {}
     void markContextDestroyed() override;
 

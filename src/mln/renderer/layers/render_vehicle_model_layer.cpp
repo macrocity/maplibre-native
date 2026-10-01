@@ -233,13 +233,8 @@ void RenderVehicleModelLayer::buildDrawables(gfx::Context& context, UniqueChange
     builtDrawables = 0;
 
     const auto builder = context.createDrawableBuilder(getID());
-    // On OpenGL the depth range of the 3D buildings is chosen by `is3D`; Metal gives every drawable outside a tile
-    // group the same depth test the buildings have.
-#if MLN_RENDER_BACKEND_OPENGL
-    constexpr bool depth3D = true;
-#else
-    constexpr bool depth3D = false;
-#endif
+    // `is3D`: the depth test of the 3D buildings, on OpenGL (their depth range) and on Metal, whatever 2D layer order
+    // the layer stands at.
 
     const auto make = [&](const std::string& name,
                           const gfx::ShaderProgramBasePtr& shader,
@@ -257,7 +252,7 @@ void RenderVehicleModelLayer::buildDrawables(gfx::Context& context, UniqueChange
         drawable->setRenderPass(RenderPass::Translucent);
         drawable->setDrawPriority(priority);
         drawable->setShader(shader);
-        drawable->setIs3D(depth && depth3D);
+        drawable->setIs3D(depth);
         drawable->setEnableDepth(depth);
         drawable->setDepthType(depthType);
         drawable->setEnableStencil(false);
