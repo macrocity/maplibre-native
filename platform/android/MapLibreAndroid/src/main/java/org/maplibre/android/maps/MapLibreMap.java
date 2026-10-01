@@ -561,7 +561,7 @@ public final class MapLibreMap {
    * Sets the maximum Pitch the map can be displayed at.
    * </p>
    * <p>
-   * The default and upper bound for maximum Pitch is 60.
+   * The default maximum pitch is 60, and its upper bound 85.
    * </p>
    *
    * @param maxPitch The new maximum Pitch.
@@ -657,6 +657,17 @@ public final class MapLibreMap {
    */
   public final void moveCamera(@NonNull CameraUpdate update) {
     moveCamera(update, null);
+  }
+
+  /**
+   * Moves the camera at once, like {@link #moveCamera(CameraUpdate)}, without telling the camera listeners
+   * (move started, move, idle). For a camera driven every frame, such as one that follows a moving vehicle;
+   * gestures are still reported.
+   *
+   * @param cameraPosition Where the camera goes. Fields left unset keep their current value.
+   */
+  public final void jumpQuietly(@NonNull CameraPosition cameraPosition) {
+    transform.jumpQuietly(cameraPosition);
   }
 
   /**

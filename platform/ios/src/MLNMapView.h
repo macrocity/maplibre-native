@@ -488,6 +488,16 @@ MLN_EXPORT
 
 @property (nonatomic, assign) BOOL tileCacheEnabled;
 
+/**
+ Whether camera changes made in code skip the delegate's region-change messages
+ (`-mapView:regionWillChangeWithReason:animated:`, `-mapView:regionIsChangingWithReason:`,
+ `-mapView:regionDidChangeWithReason:animated:` and their older forms).
+
+ A camera driven every frame, such as one that follows a moving vehicle, sets this so the delegate is not
+ told about every frame. Changes from gestures are still reported. The default is `NO`.
+ */
+@property (nonatomic) BOOL quietsProgrammaticCameraChanges;
+
 // MARK: Tile LOD controls
 
 /**
