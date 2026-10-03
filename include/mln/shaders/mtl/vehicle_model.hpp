@@ -87,7 +87,8 @@ FragmentStage vertex vertexMain(thread const VertexStage vertx [[stage_in]],
     const float sky = 0.5 + 0.5 * n.z;
     float3 lit = base * (props.shade.x + props.shade.y * direct + props.shade.w * sky);
     if (flags > 1.5) {
-        lit = base * props.shade.z + 0.15;
+        // A lamp shines in its own colour at full strength, in light and dark (macrocity/app#801).
+        lit = base / max(max(base.r, base.g), max(base.b, 0.001));
     }
 
     return {
