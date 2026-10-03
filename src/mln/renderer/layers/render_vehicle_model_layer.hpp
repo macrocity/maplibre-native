@@ -38,8 +38,8 @@ public:
                 const RenderTree&,
                 UniqueChangeRequestVec&) override;
 
-    static constexpr std::size_t maxKinds = 3;
-    static constexpr std::size_t maxParts = 6;
+    static constexpr std::size_t maxKinds = 24;
+    static constexpr std::size_t maxParts = 8;
 
     struct Part {
         float centerZ = 0;
@@ -54,6 +54,8 @@ public:
         std::vector<Part> parts;
         float halfWidth = 1.28f;
         float labelHeight = 3.7f;
+        /// Its whole length, cars and all: how far past the screen's edge its middle may be and still show.
+        float length = 12;
     };
 
 private:
