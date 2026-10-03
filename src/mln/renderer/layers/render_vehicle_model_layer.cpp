@@ -157,26 +157,48 @@ bool RenderVehicleModelLayer::loadModels(const std::vector<uint8_t>& file) {
     in.at = 4;
     const auto version = in.read<uint32_t>();
     const auto count = in.read<uint32_t>();
-    if (!in.ok || version != 1 || count > maxKinds) return false;
+    if (!in.ok || (version != 1 && version != 2) || count > maxKinds) return false;
     std::array<Model, maxKinds> loaded;
     for (uint32_t m = 0; m < count; ++m) {
         const auto kind = in.read<uint32_t>();
         const auto partCount = in.read<uint32_t>();
-        in.read<float>(); // length
+        const auto length = in.read<float>();
         const auto height = in.read<float>();
         if (!in.ok || kind >= maxKinds || partCount == 0 || partCount > maxParts) return false;
         auto& model = loaded[kind];
-        constexpr uint32_t tram = 2;
-        // The pill stands over the body, not over a pantograph or the trolley poles.
-        model.labelHeight = std::min(height, kind == tram ? 3.7f : 3.3f) + 0.4f;
-        model.halfWidth = kind == tram ? 1.2f : 1.28f;
+        model.length = length;
+        if (version >= 2) {
+            // Version 2 gives each model its own width and the height its pill stands at (over the body, not over
+            // a pantograph or the trolley poles).
+            model.halfWidth = in.read<float>();
+            model.labelHeight = in.read<float>() + 0.4f;
+        } else {
+            constexpr uint32_t tram = 2;
+            model.labelHeight = std::min(height, kind == tram ? 3.7f : 3.3f) + 0.4f;
+            model.halfWidth = kind == tram ? 1.2f : 1.28f;
+        }
         for (uint32_t p = 0; p < partCount; ++p) {
             Part part;
             part.centerZ = in.read<float>();
             part.halfLength = in.read<float>();
             const auto vertexCount = in.read<uint32_t>();
             const auto indexCount = in.read<uint32_t>();
-            constexpr std::size_t vertexBytes = 20;
+            if (version >= 2 && vertexCount == 0 && indexCount == 0) {
+                // A part drawn as a part of a model before it (a train's coaches): it shares that part's buffers.
+                const auto fromKind = in.read<uint32_t>();
+                const auto fromPart = in.read<uint32_t>();
+                if (!in.ok || fromKind >= maxKinds || fromPart >= loaded[fromKind].parts.size()) return false;
+                const auto& from = loaded[fromKind].parts[fromPart];
+                part.vertices = from.vertices;
+                part.vertexCount = from.vertexCount;
+                part.indices = from.indices;
+                part.indexCount = from.indexCount;
+                model.parts.push_back(std::move(part));
+                continue;
+            }
+            // Version 1: f32 x, y, z; i8 normal; u8 flags; u8 rgba. Version 2: i16 x, y, z in millimetres; i8 normal;
+            // u8 flags; u8 rgb; a byte of padding.
+            const std::size_t vertexBytes = version >= 2 ? 14 : 20;
             if (!in.ok || vertexCount > std::numeric_limits<uint16_t>::max() || indexCount % 3 != 0 ||
                 in.at + vertexCount * vertexBytes + (indexCount * 2 + 3) / 4 * 4 > file.size()) {
                 return false;
@@ -185,12 +207,21 @@ bool RenderVehicleModelLayer::loadModels(const std::vector<uint8_t>& file) {
             for (uint32_t v = 0; v < vertexCount; ++v) {
                 const uint8_t* at = file.data() + in.at + v * vertexBytes;
                 std::array<float, 3> position;
-                std::memcpy(position.data(), at, 12);
-                const auto normal = [&](int i) { return static_cast<float>(static_cast<int8_t>(at[12 + i])) / 127.0f; };
+                std::size_t n = 12;
+                if (version >= 2) {
+                    std::array<int16_t, 3> mm;
+                    std::memcpy(mm.data(), at, 6);
+                    position = {mm[0] / 1000.0f, mm[1] / 1000.0f, mm[2] / 1000.0f};
+                    n = 6;
+                } else {
+                    std::memcpy(position.data(), at, 12);
+                }
+                const auto normal = [&](std::size_t i) { return static_cast<float>(static_cast<int8_t>(at[n + i])) / 127.0f; };
+                const uint8_t* color = at + n + 4;
                 vertices->emplace_back(ModelVertex{
                     position,
-                    {normal(0), normal(1), normal(2), static_cast<float>(at[15])},
-                    {at[16] / 255.0f, at[17] / 255.0f, at[18] / 255.0f, at[19] / 255.0f},
+                    {normal(0), normal(1), normal(2), static_cast<float>(at[n + 3])},
+                    {color[0] / 255.0f, color[1] / 255.0f, color[2] / 255.0f, version >= 2 ? 1.0f : color[3] / 255.0f},
                 });
             }
             in.at += vertexCount * vertexBytes;
@@ -549,7 +580,8 @@ void RenderVehicleModelLayer::update(gfx::ShaderRegistry& shaders,
         sampleTrack(track, sampleCount, k, item.lon, item.lat, item.bearing);
         const auto p = Projection::project(LatLng(item.lat, item.lon), scale);
         const auto clip = transform(matrix, p.x - origin.x, p.y - origin.y, 1.5);
-        const double reach = vehicle.kind == 2 ? 2.4 : 1.6;
+        // A long vehicle (a tram, a train) shows while its middle is further off the screen.
+        const double reach = 1.4 + models[vehicle.kind].length / 45.0;
         if (clip[3] <= 0 || std::abs(clip[0]) > reach * clip[3] || std::abs(clip[1]) > reach * clip[3]) continue;
         item.depth = static_cast<float>(clip[3]);
         drawn.push_back(item);
