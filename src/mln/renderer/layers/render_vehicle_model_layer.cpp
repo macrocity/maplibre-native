@@ -131,6 +131,7 @@ RenderVehicleModelLayer::RenderVehicleModelLayer(Immutable<style::VehicleModelLa
     : RenderLayer(makeMutable<VehicleModelLayerProperties>(std::move(_impl))) {
     drawn.reserve(maxRecords);
     records.assign(maxRecords * recordFloats, 0.0f);
+    plateRecords.reserve(maxRecords * recordFloats);
     labelOrder.reserve(maxRecords);
     hits.reserve(maxRecords);
 }
@@ -148,6 +149,8 @@ void RenderVehicleModelLayer::markContextDestroyed() {
     labelShader.reset();
     labelAtlas.reset();
     atlasSource.reset();
+    plateAtlas.reset();
+    plateAtlasSource.reset();
     builtDrawables = 0;
 }
 
@@ -157,7 +160,7 @@ bool RenderVehicleModelLayer::loadModels(const std::vector<uint8_t>& file) {
     in.at = 4;
     const auto version = in.read<uint32_t>();
     const auto count = in.read<uint32_t>();
-    if (!in.ok || (version != 1 && version != 2) || count > maxKinds) return false;
+    if (!in.ok || version < 1 || version > 3 || count > maxKinds) return false;
     std::array<Model, maxKinds> loaded;
     for (uint32_t m = 0; m < count; ++m) {
         const auto kind = in.read<uint32_t>();
@@ -176,6 +179,25 @@ bool RenderVehicleModelLayer::loadModels(const std::vector<uint8_t>& file) {
             constexpr uint32_t tram = 2;
             model.labelHeight = std::min(height, kind == tram ? 3.7f : 3.3f) + 0.4f;
             model.halfWidth = kind == tram ? 1.2f : 1.28f;
+        }
+        if (version >= 3) {
+            // Version 3 says where the model carries its licence plates (macrocity/app#935): none, or one or more
+            // faces, each on a part, in that part's frame.
+            const auto plateCount = in.read<uint32_t>();
+            if (!in.ok || plateCount > 4) return false;
+            for (uint32_t i = 0; i < plateCount; ++i) {
+                PlateMount mount;
+                mount.part = in.read<uint32_t>();
+                mount.y = in.read<float>();
+                mount.z = in.read<float>();
+                mount.halfWidth = in.read<float>();
+                mount.halfHeight = in.read<float>();
+                if (!in.ok || mount.part >= partCount || !(mount.halfWidth > 0) || !(mount.halfHeight > 0) ||
+                    mount.z == 0) {
+                    return false;
+                }
+                model.plates.push_back(mount);
+            }
         }
         for (uint32_t p = 0; p < partCount; ++p) {
             Part part;
@@ -261,6 +283,7 @@ void RenderVehicleModelLayer::buildDrawables(gfx::Context& context, UniqueChange
     }
     shadowSlot = {};
     labelSlot = {};
+    plateSlot = {};
     builtDrawables = 0;
 
     const auto builder = context.createDrawableBuilder(getID());
@@ -391,9 +414,22 @@ void RenderVehicleModelLayer::buildDrawables(gfx::Context& context, UniqueChange
                       gfx::AttributeDataType::Float2,
                       quadIndices,
                       6);
-    labelSlot = make("vehicle-model-labels",
+    // The licence plates: the pills' shader, placed on the bodies in metres (its drawable says so), with the depth of
+    // the models, after them and over a faded one's colour.
+    plateSlot = make("vehicle-model-plates",
                      labelShader,
                      4,
+                     true,
+                     gfx::DepthMaskType::ReadOnly,
+                     true,
+                     quad(0.0f),
+                     4,
+                     gfx::AttributeDataType::Float2,
+                     quadIndices,
+                     6);
+    labelSlot = make("vehicle-model-labels",
+                     labelShader,
+                     5,
                      false,
                      gfx::DepthMaskType::ReadOnly,
                      true,
@@ -458,6 +494,54 @@ void RenderVehicleModelLayer::buildLabelAtlas(gfx::Context& context, const Vehic
     if (labelSlot.drawable) labelSlot.drawable->setTexture(labelAtlas, idVehicleModelLabelTexture);
 }
 
+void RenderVehicleModelLayer::buildPlateAtlas(gfx::Context& context, const VehicleModelPlateImages& images) {
+    plateUVs.clear();
+    // Shelves of plates in a texture 1024 pixels wide, at most 2048 high: the plates past that are not drawn.
+    constexpr uint32_t atlasWidth = 1024;
+    constexpr uint32_t maxHeight = 2048;
+    struct Placement {
+        const std::string* id;
+        const PremultipliedImage* image;
+        uint32_t x, y;
+    };
+    std::vector<Placement> placed;
+    placed.reserve(images.size());
+    uint32_t x = 0, y = 0, shelf = 0;
+    for (const auto& [id, image] : images) {
+        if (!image || !image->valid() || image->size.width > atlasWidth || image->size.height > maxHeight) continue;
+        const auto size = image->size;
+        if (x + size.width > atlasWidth) {
+            x = 0;
+            y += shelf + 1;
+            shelf = 0;
+        }
+        if (y + size.height > maxHeight) break;
+        placed.push_back({&id, image.get(), x, y});
+        x += size.width + 1;
+        shelf = std::max(shelf, size.height);
+    }
+    const uint32_t atlasHeight = std::max(1u, y + shelf);
+    PremultipliedImage image({atlasWidth, atlasHeight});
+    image.fill(0);
+    for (const auto& p : placed) {
+        const auto size = p.image->size;
+        PremultipliedImage::copy(*p.image, image, {0, 0}, {p.x, p.y}, size);
+        // Half a texel in from each edge, so the linear filter never reads the neighbour.
+        plateUVs[*p.id] = {(p.x + 0.5f) / atlasWidth,
+                           (p.y + 0.5f) / atlasHeight,
+                           (p.x + size.width - 0.5f) / atlasWidth,
+                           (p.y + size.height - 0.5f) / atlasHeight};
+    }
+    if (!plateAtlas) {
+        plateAtlas = context.createTexture2D();
+        plateAtlas->setSamplerConfiguration({.filter = gfx::TextureFilterType::Linear,
+                                             .wrapU = gfx::TextureWrapType::Clamp,
+                                             .wrapV = gfx::TextureWrapType::Clamp});
+    }
+    plateAtlas->upload(image);
+    if (plateSlot.drawable) plateSlot.drawable->setTexture(plateAtlas, idVehicleModelLabelTexture);
+}
+
 void RenderVehicleModelLayer::disable() {
     for (auto& kind : partSlots) {
         for (auto& part : kind) {
@@ -468,6 +552,7 @@ void RenderVehicleModelLayer::disable() {
     }
     if (shadowSlot.drawable) shadowSlot.drawable->setEnabled(false);
     if (labelSlot.drawable) labelSlot.drawable->setEnabled(false);
+    if (plateSlot.drawable) plateSlot.drawable->setEnabled(false);
 }
 
 void RenderVehicleModelLayer::update(gfx::ShaderRegistry& shaders,
@@ -527,6 +612,7 @@ void RenderVehicleModelLayer::update(gfx::ShaderRegistry& shaders,
     if (builtDrawables == 0 || !layerGroup || layerGroup->getDrawableCount() != builtDrawables) {
         buildDrawables(context, changes);
         atlasSource.reset();
+        plateAtlasSource.reset();
     }
     if (!layerGroup || builtDrawables == 0) {
         stop();
@@ -535,6 +621,29 @@ void RenderVehicleModelLayer::update(gfx::ShaderRegistry& shaders,
     if (layer.labels != atlasSource) {
         atlasSource = layer.labels;
         buildLabelAtlas(context, *layer.labels);
+    }
+
+    // The licence plates, zoomed in close (macrocity/app#935): each vehicle's plate in their atlas, found once for
+    // each set of vehicles and of plates, so a frame looks up nothing by name.
+    const double plateFade = std::clamp((zoom - layer.plateFrom) / (layer.plateTo - layer.plateFrom), 0.0, 1.0);
+    const bool platesShown = plateFade > 0.0 && layer.plates && !layer.plates->empty();
+    if (platesShown && layer.plates != plateAtlasSource) {
+        plateAtlasSource = layer.plates;
+        buildPlateAtlas(context, *layer.plates);
+    }
+    if (platesShown && (samples != platesFor || plateAtlasSource != platesFrom)) {
+        platesFor = samples;
+        platesFrom = plateAtlasSource;
+        vehiclePlates.assign(samples->vehicles.size(), -1);
+        vehiclePlateUVs.clear();
+        for (std::size_t v = 0; v < samples->vehicles.size(); ++v) {
+            const auto& vehicle = samples->vehicles[v];
+            if (vehicle.kind >= maxKinds || models[vehicle.kind].plates.empty()) continue;
+            const auto found = plateUVs.find(vehicle.id);
+            if (found == plateUVs.end()) continue;
+            vehiclePlates[v] = static_cast<int32_t>(vehiclePlateUVs.size());
+            vehiclePlateUVs.push_back(found->second);
+        }
     }
 
     // The camera: world points from an origin at the map's centre (small numbers, exact in float) and metres up.
@@ -620,6 +729,7 @@ void RenderVehicleModelLayer::update(gfx::ShaderRegistry& shaders,
     }
 
     hits.clear();
+    plateRecords.clear();
     float* out = records.data();
     uint32_t partsWritten = 0;
     for (const auto& item : drawn) {
@@ -668,6 +778,56 @@ void RenderVehicleModelLayer::update(gfx::ShaderRegistry& shaders,
             r[9] = part.halfLength;
             r[10] = model.halfWidth;
             r[11] = 0;
+            // Its plates: flat on the face at either end, turned with it. One seen from behind, edge on or too
+            // small to read is not drawn; a small one fades in as it grows.
+            const int32_t plate = platesShown && item.vehicle < vehiclePlates.size() ? vehiclePlates[item.vehicle] : -1;
+            for (const auto& mount : model.plates) {
+                if (plate < 0 || mount.part != p || plateRecords.size() + recordFloats > plateRecords.capacity()) break;
+                const double facing = mount.z > 0 ? 1.0 : -1.0;
+                const double hw = mount.halfWidth * facing;
+                const double cx = dx + s * mount.z * kpm;
+                const double cy = dy - c * mount.z * kpm;
+                // The corners as the one looking at the plate sees them: bottom left, bottom right, top right.
+                std::array<float, 6> corner{};
+                bool behind = false;
+                for (int i = 0; i < 3; ++i) {
+                    const double lx = (i == 0 ? -1 : 1) * hw;
+                    const double up = mount.y + (i == 2 ? 1 : -1) * mount.halfHeight;
+                    const auto clip = transform(matrix, cx - c * lx * kpm, cy - s * lx * kpm, up);
+                    if (clip[3] <= 0) {
+                        behind = true;
+                        break;
+                    }
+                    toScreen(clip, corner[i * 2], corner[i * 2 + 1]);
+                }
+                if (behind) continue;
+                // Bottom edge across, and the right edge up: their cross product is negative when the plate faces
+                // the camera (screen y runs down), its size the plate's area on screen.
+                const float ax = corner[2] - corner[0], ay = corner[3] - corner[1];
+                const float bx = corner[4] - corner[2], by = corner[5] - corner[3];
+                const float cross = ax * by - ay * bx;
+                const float across = std::hypot(ax, ay);
+                if (cross >= 0 || across < 1e-3f) continue;
+                const float tall = -cross / across;
+                const float legible = std::clamp((across - 6.0f) / 6.0f, 0.0f, 1.0f) *
+                                      std::clamp((tall - 1.0f) / 1.0f, 0.0f, 1.0f);
+                const float plateAlpha = item.alpha * static_cast<float>(plateFade) * legible;
+                if (plateAlpha <= 0.01f) continue;
+                const auto& uv = vehiclePlateUVs[plate];
+                plateRecords.insert(plateRecords.end(),
+                                    {static_cast<float>(cx),
+                                     static_cast<float>(cy),
+                                     static_cast<float>(c * kpm),
+                                     static_cast<float>(s * kpm),
+                                     uv[0],
+                                     uv[1],
+                                     uv[2],
+                                     uv[3],
+                                     mount.y,
+                                     static_cast<float>(hw),
+                                     mount.halfHeight,
+                                     plateAlpha});
+            }
             // The part's box on screen, for taps.
             for (int corner = 0; corner < 8; ++corner) {
                 const double lx = (corner & 1 ? 1 : -1) * model.halfWidth;
@@ -726,13 +886,21 @@ void RenderVehicleModelLayer::update(gfx::ShaderRegistry& shaders,
         }
     }
 
-    // The draw calls: one per model part and look, the shadows of every part, the pills.
-    const auto setSlot = [&](const Slot& slot, uint32_t base, uint32_t count) {
+    // The plates, after the pills, as many as there is room for.
+    const uint32_t plateBase = labelBase + labelCount;
+    const auto plateCount = static_cast<uint32_t>(
+        std::min<std::size_t>(plateRecords.size() / recordFloats, maxRecords - std::min<std::size_t>(maxRecords, plateBase)));
+    if (plateCount > 0) {
+        std::copy_n(plateRecords.data(), std::size_t(plateCount) * recordFloats, out + std::size_t(plateBase) * recordFloats);
+    }
+
+    // The draw calls: one per model part and look, the shadows of every part, the pills, the plates.
+    const auto setSlot = [&](const Slot& slot, uint32_t base, uint32_t count, float mode = 0) {
         if (!slot.drawable) return;
         slot.drawable->setEnabled(count > 0);
         if (count == 0) return;
         slot.segment->instanceCount = count;
-        const VehicleModelDrawableUBO ubo{static_cast<float>(base), 0, 0, 0};
+        const VehicleModelDrawableUBO ubo{static_cast<float>(base), mode, 0, 0};
         slot.drawable->mutableUniformBuffers().createOrUpdate(idVehicleModelDrawableUBO, &ubo, sizeof(ubo), context);
     };
     for (std::size_t kind = 0; kind < maxKinds; ++kind) {
@@ -746,6 +914,8 @@ void RenderVehicleModelLayer::update(gfx::ShaderRegistry& shaders,
     }
     setSlot(shadowSlot, 0, partTotal);
     setSlot(labelSlot, labelBase, labelAtlas ? labelCount : 0);
+    // Mode 1: the pills' shader draws plates on the bodies.
+    setSlot(plateSlot, plateBase, plateAtlas ? plateCount : 0, 1);
 
     VehicleModelPropsUBO props;
     props.matrix = util::cast<float>(matrix);

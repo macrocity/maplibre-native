@@ -22,18 +22,20 @@ struct alignas(16) VehicleModelPropsUBO {
 };
 static_assert(sizeof(VehicleModelPropsUBO) == 8 * 16);
 
-/// A drawable's first record in the instances.
+/// A drawable's first record in the instances, and for the pills' shader what it draws: 0 the pills, 1 the licence
+/// plates on the bodies.
 struct alignas(16) VehicleModelDrawableUBO {
     /*  0 */ float base;
-    /*  4 */ float pad1;
+    /*  4 */ float mode;
     /*  8 */ float pad2;
     /* 12 */ float pad3;
     /* 16 */
 };
 static_assert(sizeof(VehicleModelDrawableUBO) == 16);
 
-/// Three vec4 a record: a model part (place, heading; tint, opacity; scale, half length, half width) or a pill
-/// (anchor, opacity; texture rectangle; size and gap in points).
+/// Three vec4 a record: a model part (place, heading; tint, opacity; scale, half length, half width), a pill (anchor,
+/// opacity; texture rectangle; size and gap in points) or a licence plate (its middle on the ground, its heading times
+/// the scale; texture rectangle; its middle's height, half width signed by the way it faces, half height, opacity).
 constexpr std::size_t vehicleModelRecordFloats = 12;
 /// The records of one frame: every drawn part and every pill. The uniform block has this fixed size (GLSL ES needs
 /// it whole), so a frame updates it in place and never allocates.

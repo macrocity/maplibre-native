@@ -19,7 +19,7 @@ MLN_EXPORT
 
 - (instancetype)initWithIdentifier:(NSString *)identifier;
 
-/** The models: the app's model file (`MCVM`, version 1), meshes in metres, +X left, +Y up, +Z ahead. */
+/** The models: the app's model file (`MCVM`, versions 1 to 3), meshes in metres, +X left, +Y up, +Z ahead. */
 - (void)setModelsData:(NSData *)data;
 
 /**
@@ -52,6 +52,16 @@ MLN_EXPORT
 
 /** The zooms over which the models fade in; below `from` the layer draws nothing. */
 - (void)setZoomFrom:(double)from to:(double)to;
+
+/**
+ The licence plates, by the identifier of the vehicle that carries each: `images[i]` (a `CGImageRef`) is the plate of
+ `identifiers[i]`, drawn flat on the body where its model has a plate, at the front and at the back. A new set replaces
+ the last one; an empty one draws none.
+ */
+- (void)setPlateImages:(NSArray *)images forIdentifiers:(NSArray<NSString *> *)identifiers;
+
+/** The zooms over which the licence plates fade in; below `from` the layer draws none. */
+- (void)setPlateZoomFrom:(double)from to:(double)to;
 
 /** The dark map's light and lamps. */
 @property (nonatomic, getter=isDark) BOOL dark;

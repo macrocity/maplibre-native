@@ -77,6 +77,23 @@
   self.rawLayer->setZoomRange(static_cast<float>(from), static_cast<float>(to));
 }
 
+- (void)setPlateImages:(NSArray *)images forIdentifiers:(NSArray<NSString *> *)identifiers {
+  MLNAssertStyleLayerIsValid();
+  std::map<std::string, mln::PremultipliedImage> plates;
+  const NSUInteger count = MIN(images.count, identifiers.count);
+  for (NSUInteger i = 0; i < count; i++) {
+    CGImageRef image = (__bridge CGImageRef)images[i];
+    if (!image || CFGetTypeID(image) != CGImageGetTypeID()) continue;
+    plates[identifiers[i].UTF8String] = MLNPremultipliedImageFromCGImage(image);
+  }
+  self.rawLayer->setPlateImages(std::move(plates));
+}
+
+- (void)setPlateZoomFrom:(double)from to:(double)to {
+  MLNAssertStyleLayerIsValid();
+  self.rawLayer->setPlateZoomRange(static_cast<float>(from), static_cast<float>(to));
+}
+
 - (void)setDark:(BOOL)dark {
   MLNAssertStyleLayerIsValid();
   self.rawLayer->setDark(dark);

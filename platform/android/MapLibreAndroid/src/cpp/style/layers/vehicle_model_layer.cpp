@@ -5,6 +5,7 @@
 #include <mln/style/layer_impl.hpp>
 
 #include <algorithm>
+#include <map>
 
 namespace mln {
 namespace android {
@@ -93,6 +94,25 @@ void VehicleModelLayer::setZoomRange(jni::JNIEnv&, jni::jfloat from, jni::jfloat
     if (auto* core = layer()) core->setZoomRange(from, to);
 }
 
+void VehicleModelLayer::setPlateImages(jni::JNIEnv& env,
+                                       const jni::Array<jni::String>& ids,
+                                       const jni::Array<jni::Object<Bitmap>>& bitmaps) {
+    auto* core = layer();
+    if (!core || !ids || !bitmaps) return;
+    const auto count = std::min(ids.Length(env), bitmaps.Length(env));
+    std::map<std::string, PremultipliedImage> images;
+    for (std::size_t i = 0; i < count; ++i) {
+        auto bitmap = bitmaps.Get(env, i);
+        if (!bitmap) continue;
+        images[jni::Make<std::string>(env, ids.Get(env, i))] = Bitmap::GetImage(env, bitmap);
+    }
+    core->setPlateImages(std::move(images));
+}
+
+void VehicleModelLayer::setPlateZoomRange(jni::JNIEnv&, jni::jfloat from, jni::jfloat to) {
+    if (auto* core = layer()) core->setPlateZoomRange(from, to);
+}
+
 void VehicleModelLayer::setDark(jni::JNIEnv&, jni::jboolean dark) {
     if (auto* core = layer()) core->setDark(dark);
 }
@@ -162,6 +182,8 @@ void VehicleModelJavaLayerPeerFactory::registerNative(jni::JNIEnv& env) {
                                                METHOD(&VehicleModelLayer::setVehicles, "nativeSetVehicles"),
                                                METHOD(&VehicleModelLayer::setLabelImage, "nativeSetLabelImage"),
                                                METHOD(&VehicleModelLayer::setZoomRange, "nativeSetZoomRange"),
+                                               METHOD(&VehicleModelLayer::setPlateImages, "nativeSetPlateImages"),
+                                               METHOD(&VehicleModelLayer::setPlateZoomRange, "nativeSetPlateZoomRange"),
                                                METHOD(&VehicleModelLayer::setDark, "nativeSetDark"),
                                                METHOD(&VehicleModelLayer::vehicleAt, "nativeVehicleAt"),
                                                METHOD(&VehicleModelLayer::wantsFrame, "nativeWantsFrame"),
