@@ -589,14 +589,18 @@ public:
             const ImagePosition imageMid = mid->second;
             const ImagePosition imageMax = max->second;
 
+            // The dependencies are the `to` images of the tile's zoom less one, its zoom and one more: `min` is the
+            // image of the tile's own zoom. A pattern that changes with the zoom draws that one, laid on the ground
+            // at the tile's zoom (`FillExtrusionLayerTweaker`); `mid`, the next zoom's image, came out twice the size.
+            const ImagePosition& imageOwn = expression.isZoomConstant() ? imageMid : imageMin;
             if (!pixelRatio) {
-                pixelRatio = imageMid.pixelRatio;
+                pixelRatio = imageOwn.pixelRatio;
             }
             for (std::size_t i = zoomInVertexVector.elements(); i < length; ++i) {
                 zoomInVertexVector.emplace_back(Vertex2{imageMin.tlbr()});
                 zoomOutVertexVector.emplace_back(Vertex2{imageMax.tlbr()});
 
-                const auto& value = Vertex{imageMid.tlbr()};
+                const auto& value = Vertex{imageOwn.tlbr()};
                 this->interleavedVertexBuffer->set(i, this->vertexOffset, value);
             }
         }

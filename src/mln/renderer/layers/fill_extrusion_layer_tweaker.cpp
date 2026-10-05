@@ -38,10 +38,10 @@ void FillExtrusionLayerTweaker::execute(LayerGroupBase& layerGroup, const PaintP
     // ground: each tile draws the image its own zoom chose, at that image's size in points (its pixels over its
     // pixel ratio) at that zoom, and it scales with the walls from there. No crossfade between zooms. So a wall keeps
     // the same pattern, at the same place and size in metres, at every camera zoom and while tiles of other zooms
-    // replace its tile; a finer zoom's image only adds detail. Otherwise the pattern is drawn at the integer camera
-    // zoom's scale with the tile's own zoom's image, both images of a tile read the same attribute, and the device's
-    // pixel ratio stands in for the image's: the windows of the 3D city changed size and count, and snapped, as the
-    // map zoomed (macrocity/app#952).
+    // replace its tile; a finer zoom's image only adds detail. Before, such a tile drew the next zoom's image at the
+    // integer camera zoom's scale, crossfaded with itself at twice or half that scale, and the device's pixel ratio
+    // stood in for the image's: the windows of the 3D city changed size and count, and snapped, as the map zoomed
+    // (macrocity/app#952). The binder hands over the tile's own image (`CompositeCrossFadedPaintPropertyBinder`).
     const bool groundPattern = evaluated.get<FillExtrusionPattern>().match(
         [](const Faded<expression::Image>&) { return false; },
         [](const style::PropertyExpression<expression::Image>& expression) { return !expression.isZoomConstant(); });
