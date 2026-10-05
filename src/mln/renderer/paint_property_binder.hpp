@@ -171,6 +171,10 @@ public:
     virtual void setPatternParameters(const std::optional<ImagePosition>&,
                                       const std::optional<ImagePosition>&,
                                       const CrossfadeParameters&) = 0;
+
+    /// The pixel ratio of the pattern images a data-driven pattern binder laid out, if it has any.
+    virtual std::optional<float> patternPixelRatio() const { return std::nullopt; }
+
     virtual std::tuple<ExpandToType<As, float>...> interpolationFactor(float currentZoom) const = 0;
     virtual std::tuple<ExpandToType<As, UniformValueType>...> uniformValue(
         const PossiblyEvaluatedType& currentValue) const = 0;
@@ -585,11 +589,18 @@ public:
             const ImagePosition imageMid = mid->second;
             const ImagePosition imageMax = max->second;
 
+            // The dependencies are the `to` images of the tile's zoom less one, its zoom and one more: `min` is the
+            // image of the tile's own zoom. A pattern that changes with the zoom draws that one, laid on the ground
+            // at the tile's zoom (`FillExtrusionLayerTweaker`); `mid`, the next zoom's image, came out twice the size.
+            const ImagePosition& imageOwn = expression.isZoomConstant() ? imageMid : imageMin;
+            if (!pixelRatio) {
+                pixelRatio = imageOwn.pixelRatio;
+            }
             for (std::size_t i = zoomInVertexVector.elements(); i < length; ++i) {
                 zoomInVertexVector.emplace_back(Vertex2{imageMin.tlbr()});
                 zoomOutVertexVector.emplace_back(Vertex2{imageMax.tlbr()});
 
-                const auto& value = Vertex{imageMid.tlbr()};
+                const auto& value = Vertex{imageOwn.tlbr()};
                 this->interleavedVertexBuffer->set(i, this->vertexOffset, value);
             }
         }
@@ -598,6 +609,8 @@ public:
     void updateVertexVector(std::size_t, std::size_t, const GeometryTileFeature&, const FeatureState&) override {}
 
     std::tuple<float, float> interpolationFactor(float) const override { return std::tuple<float, float>{0.0f, 0.0f}; }
+
+    std::optional<float> patternPixelRatio() const override { return pixelRatio; }
 
     std::tuple<std::array<uint16_t, 4>, std::array<uint16_t, 4>> uniformValue(
         const PossiblyEvaluatedPropertyValue<Faded<T>>&) const override {
@@ -629,6 +642,8 @@ private:
     gfx::VertexVector<Vertex2> zoomOutVertexVector;
 
     CrossfadeParameters crossfade;
+    // The pixel ratio of the tile's pattern images, from the first feature that has one.
+    std::optional<float> pixelRatio;
 };
 
 template <class T, class PossiblyEvaluatedType>

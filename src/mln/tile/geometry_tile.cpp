@@ -323,8 +323,11 @@ void GeometryTile::setLayers(const std::vector<Immutable<LayerProperties>>& laye
     }
 
     ++correlationID;
-    worker.self().invoke(
-        &GeometryTileWorker::setLayers, std::move(impls), imageManager->getAvailableImages(), correlationID);
+    worker.self().invoke(&GeometryTileWorker::setLayers,
+                         std::move(impls),
+                         imageManager->getAvailableImages(),
+                         subdivisionGranularity,
+                         correlationID);
 }
 
 void GeometryTile::setShowCollisionBoxes(const bool showCollisionBoxes_) {
@@ -335,6 +338,12 @@ void GeometryTile::setShowCollisionBoxes(const bool showCollisionBoxes_) {
         ++correlationID;
         worker.self().invoke(&GeometryTileWorker::setShowCollisionBoxes, showCollisionBoxes, correlationID);
     }
+}
+
+void GeometryTile::setSubdivisionGranularity(const SubdivisionGranularitySetting& subdivisionGranularity_) {
+    MLN_TRACE_FUNC();
+
+    subdivisionGranularity = subdivisionGranularity_;
 }
 
 void GeometryTile::onLayout(std::shared_ptr<LayoutResult>&& result, const uint64_t resultCorrelationID) {
@@ -518,9 +527,11 @@ void GeometryTile::queryRenderedFeatures(std::unordered_map<std::string, std::ve
 
     const float queryPadding = getQueryPadding(layers);
 
-    mat4 posMatrix;
-    transformState.matrixFor(posMatrix, id.toUnwrapped());
-    matrix::multiply(posMatrix, projMatrix, posMatrix);
+    // The feature index takes tile coordinates through this matrix to measure viewport-aligned circles in pixels. On
+    // the globe the main matrix takes points of the unit sphere instead, so the query uses the Mercator matrix the
+    // globe falls back to; the query geometry goes through the same matrix, and the two scales meet at the center.
+    const ProjectionData projection = transformState.getProjectionData(id.toUnwrapped(), projMatrix);
+    const mat4& posMatrix = transformState.isGlobeRendering() ? projection.fallbackMatrix : projection.mainMatrix;
 
     layoutResult->featureIndex->query(result,
                                       queryGeometry,

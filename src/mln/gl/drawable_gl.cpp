@@ -52,9 +52,20 @@ void DrawableGL::draw(PaintParameters& parameters) const {
     // force disable depth test for debugging
     // context.setDepthMode({gfx::DepthFunctionType::Always, gfx::DepthMaskType::ReadOnly, {0,1}});
 
-    // For 3D mode, stenciling is handled by the layer group
-    if (!is3D) {
+    if (stencilWriteRef) {
+        context.setStencilMode(gfx::StencilMode{gfx::StencilMode::Always{},
+                                                *stencilWriteRef,
+                                                0b11111111,
+                                                gfx::StencilOpType::Keep,
+                                                gfx::StencilOpType::Keep,
+                                                gfx::StencilOpType::Replace});
+    } else if (!is3D) {
+        // For 3D mode, stenciling is handled by the layer group
         context.setStencilMode(makeStencilMode(parameters));
+    } else if (!getEnableStencil()) {
+        // A 3D drawable outside a tile layer group (the vehicle models) has no group to clear the stencil test the
+        // previous layer left, and would be clipped to that layer's last tile.
+        context.setStencilMode(gfx::StencilMode::disabled());
     }
 
     context.setColorMode(getColorMode());
@@ -68,9 +79,9 @@ void DrawableGL::draw(PaintParameters& parameters) const {
     for (const auto& seg : impl->segments) {
         const auto& glSeg = static_cast<DrawSegmentGL&>(*seg);
         const auto& mlSeg = glSeg.getSegment();
-        if (mlSeg.indexLength > 0 && glSeg.getVertexArray().isValid()) {
+        if (mlSeg.indexLength > 0 && mlSeg.instanceCount > 0 && glSeg.getVertexArray().isValid()) {
             context.bindVertexArray = glSeg.getVertexArray().getID();
-            context.draw(glSeg.getMode(), mlSeg.indexOffset, mlSeg.indexLength);
+            context.draw(glSeg.getMode(), mlSeg.indexOffset, mlSeg.indexLength, mlSeg.instanceCount);
         }
     }
     // Unbind the VAO so that future buffer commands outside Drawable do not change the current VAO state

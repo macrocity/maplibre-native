@@ -103,6 +103,20 @@ public class Transform implements MapView.OnCameraDidChangeListener {
   }
 
   /**
+   * Moves the camera at once without telling the camera listeners: for a camera driven every frame.
+   */
+  @UiThread
+  void jumpQuietly(@NonNull CameraPosition cameraPosition) {
+    if (!isValidCameraPosition(cameraPosition)) {
+      return;
+    }
+    nativeMap.cancelTransitions();
+    nativeMap.jumpTo(cameraPosition.target, cameraPosition.zoom, cameraPosition.tilt, cameraPosition.bearing,
+      cameraPosition.padding);
+    invalidateCameraPosition();
+  }
+
+  /**
    * Internal use.
    */
   @UiThread

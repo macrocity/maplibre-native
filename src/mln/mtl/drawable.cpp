@@ -265,6 +265,20 @@ void Drawable::draw(PaintParameters& parameters) const {
         }
         renderPass.setDepthStencilState(impl->depthStencilState);
         renderPass.setStencilReference(impl->previousStencilMode.ref);
+    } else if (!enableStencil && !tileID) {
+        // A 3D drawable outside a tile layer group (the vehicle models) has no group to set its depth test: it takes
+        // the one of the 3D buildings, with its own depth mask, whatever 2D layer order it stands at. A 3D drawable of
+        // a tile (the buildings themselves) keeps the state its tile layer group set: overriding it with the
+        // drawable's own mask, read-only by default, stopped the opaque buildings writing depth, and nothing behind a
+        // building was hidden by it any more (macrocity/app#801).
+        if (!impl->depthStencilState) {
+            const auto depthMode = getEnableDepth()
+                                       ? gfx::DepthMode{.func = gfx::DepthFunctionType::LessEqual, .mask = getDepthType()}
+                                       : gfx::DepthMode::disabled();
+            impl->depthStencilState = context.makeDepthStencilState(
+                depthMode, gfx::StencilMode::disabled(), renderable);
+        }
+        renderPass.setDepthStencilState(impl->depthStencilState);
     }
 
     for (const auto& seg_ : impl->segments) {

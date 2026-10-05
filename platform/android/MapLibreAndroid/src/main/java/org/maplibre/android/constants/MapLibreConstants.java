@@ -144,14 +144,19 @@ public class MapLibreConstants {
   public static final float MINIMUM_PITCH = 0.0f;
 
   /**
-   * The currently supported maximum pitch level.
+   * The highest maximum pitch a map may be given (`setMaxPitchPreference`). The core draws up to 85 degrees.
    */
-  public static final float MAXIMUM_PITCH = 60.0f;
+  public static final float MAXIMUM_PITCH = 85.0f;
 
   /**
-   * The currently supported maximum tilt value.
+   * The maximum pitch of a map that sets none.
    */
-  public static final double MAXIMUM_TILT = 60;
+  public static final float DEFAULT_MAX_PITCH = 60.0f;
+
+  /**
+   * The highest tilt a camera position may have; the map's own maximum pitch limits it further.
+   */
+  public static final double MAXIMUM_TILT = 85;
 
   /**
    * The currently supported minimum tilt value.

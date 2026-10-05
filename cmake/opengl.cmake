@@ -33,6 +33,7 @@ list(APPEND
         ${PROJECT_SOURCE_DIR}/include/mln/shaders/gl/fill_extrusion_instanced.hpp
         ${PROJECT_SOURCE_DIR}/include/mln/shaders/gl/fill_extrusion_pattern.hpp
         ${PROJECT_SOURCE_DIR}/include/mln/shaders/gl/fill_extrusion_pattern_instanced.hpp
+        ${PROJECT_SOURCE_DIR}/include/mln/shaders/gl/globe_depth.hpp
         ${PROJECT_SOURCE_DIR}/include/mln/shaders/gl/heatmap.hpp
         ${PROJECT_SOURCE_DIR}/include/mln/shaders/gl/heatmap_texture.hpp
         ${PROJECT_SOURCE_DIR}/include/mln/shaders/gl/hillshade_prepare.hpp
@@ -44,6 +45,9 @@ list(APPEND
         ${PROJECT_SOURCE_DIR}/include/mln/shaders/gl/line_sdf.hpp
         ${PROJECT_SOURCE_DIR}/include/mln/shaders/gl/location_indicator.hpp
         ${PROJECT_SOURCE_DIR}/include/mln/shaders/gl/location_indicator_textured.hpp
+        ${PROJECT_SOURCE_DIR}/include/mln/shaders/gl/vehicle_model.hpp
+        ${PROJECT_SOURCE_DIR}/include/mln/shaders/gl/vehicle_model_label.hpp
+        ${PROJECT_SOURCE_DIR}/include/mln/shaders/gl/vehicle_model_shadow.hpp
         ${PROJECT_SOURCE_DIR}/include/mln/shaders/gl/raster.hpp
         ${PROJECT_SOURCE_DIR}/include/mln/shaders/gl/symbol_icon.hpp
         ${PROJECT_SOURCE_DIR}/include/mln/shaders/gl/symbol_sdf.hpp
@@ -118,6 +122,7 @@ list(APPEND INCLUDE_FILES
         ${PROJECT_SOURCE_DIR}/include/mln/shaders/layer_ubo.hpp
         ${PROJECT_SOURCE_DIR}/include/mln/shaders/line_layer_ubo.hpp
         ${PROJECT_SOURCE_DIR}/include/mln/shaders/location_indicator_ubo.hpp
+        ${PROJECT_SOURCE_DIR}/include/mln/shaders/vehicle_model_layer_ubo.hpp
         ${PROJECT_SOURCE_DIR}/include/mln/shaders/raster_layer_ubo.hpp
         ${PROJECT_SOURCE_DIR}/include/mln/shaders/shader_defines.hpp
         ${PROJECT_SOURCE_DIR}/include/mln/shaders/symbol_layer_ubo.hpp

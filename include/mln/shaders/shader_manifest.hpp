@@ -20,6 +20,7 @@
 #include <mln/shaders/gl/fill_extrusion_instanced.hpp>
 #include <mln/shaders/gl/fill_extrusion_pattern.hpp>
 #include <mln/shaders/gl/fill_extrusion_pattern_instanced.hpp>
+#include <mln/shaders/gl/globe_depth.hpp>
 #include <mln/shaders/gl/heatmap.hpp>
 #include <mln/shaders/gl/heatmap_texture.hpp>
 #include <mln/shaders/gl/hillshade_prepare.hpp>
@@ -35,5 +36,8 @@
 #include <mln/shaders/gl/symbol_icon.hpp>
 #include <mln/shaders/gl/symbol_sdf.hpp>
 #include <mln/shaders/gl/symbol_text_and_icon.hpp>
+#include <mln/shaders/gl/vehicle_model.hpp>
+#include <mln/shaders/gl/vehicle_model_shadow.hpp>
+#include <mln/shaders/gl/vehicle_model_label.hpp>
 #include <mln/shaders/gl/wide_vector.hpp>
 #endif

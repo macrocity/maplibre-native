@@ -64,7 +64,7 @@ public class MapLibreMapOptions implements Parcelable {
   private double minZoom = MapLibreConstants.MINIMUM_ZOOM;
   private double maxZoom = MapLibreConstants.MAXIMUM_ZOOM;
   private double minPitch = MapLibreConstants.MINIMUM_PITCH;
-  private double maxPitch = MapLibreConstants.MAXIMUM_PITCH;
+  private double maxPitch = MapLibreConstants.DEFAULT_MAX_PITCH;
 
   private boolean rotateGesturesEnabled = true;
   private boolean scrollGesturesEnabled = true;
@@ -237,7 +237,7 @@ public class MapLibreMapOptions implements Parcelable {
       maplibreMapOptions.minZoomPreference(typedArray.getFloat(R.styleable.maplibre_MapView_maplibre_cameraZoomMin,
         MapLibreConstants.MINIMUM_ZOOM));
       maplibreMapOptions.maxPitchPreference(typedArray.getFloat(R.styleable.maplibre_MapView_maplibre_cameraPitchMax,
-        MapLibreConstants.MAXIMUM_PITCH));
+        MapLibreConstants.DEFAULT_MAX_PITCH));
       maplibreMapOptions.minPitchPreference(typedArray.getFloat(R.styleable.maplibre_MapView_maplibre_cameraPitchMin,
         MapLibreConstants.MINIMUM_PITCH));
 

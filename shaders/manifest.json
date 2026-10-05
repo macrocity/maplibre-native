@@ -117,6 +117,13 @@
         "uses_ubos": true
     },
     {
+        "name": "GlobeDepthShader",
+        "header": "globe_depth",
+        "glsl_vert": "globe_depth.vertex.glsl",
+        "glsl_frag": "globe_depth.fragment.glsl",
+        "uses_ubos": true
+    },
+    {
         "name": "HeatmapShader",
         "header": "heatmap",
         "glsl_vert": "heatmap.vertex.glsl",
@@ -219,6 +226,27 @@
         "header": "symbol_text_and_icon",
         "glsl_vert": "symbol_text_and_icon.vertex.glsl",
         "glsl_frag": "symbol_text_and_icon.fragment.glsl",
+        "uses_ubos": true
+    },
+    {
+        "name": "VehicleModelShader",
+        "header": "vehicle_model",
+        "glsl_vert": "vehicle_model.vertex.glsl",
+        "glsl_frag": "vehicle_model.fragment.glsl",
+        "uses_ubos": true
+    },
+    {
+        "name": "VehicleModelShadowShader",
+        "header": "vehicle_model_shadow",
+        "glsl_vert": "vehicle_model_shadow.vertex.glsl",
+        "glsl_frag": "vehicle_model_shadow.fragment.glsl",
+        "uses_ubos": true
+    },
+    {
+        "name": "VehicleModelLabelShader",
+        "header": "vehicle_model_label",
+        "glsl_vert": "vehicle_model_label.vertex.glsl",
+        "glsl_frag": "vehicle_model_label.fragment.glsl",
         "uses_ubos": true
     },
     {

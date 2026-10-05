@@ -1,0 +1,54 @@
+{
+  "version": 8,
+  "metadata": {
+    "test": {
+      "description": "The checkerboard just below zoom 7, pitched, from a source with bounds: the globe cover asks for the zoom 7 tiles nearest the camera (the lower half) before the zoom reaches 7, and a bounded source must still create them; refused, the lower half is empty. Looking straight down, the cover keeps zoom 6 up to 7. This fixture draws its checkerboard in zoom 7 tiles only.",
+      "width": 256,
+      "height": 256
+    }
+  },
+  "sky": {
+    "atmosphere-blend": 0.0
+  },
+  "center": [
+    -151.855,
+    61.59
+  ],
+  "zoom": 6.95,
+  "pitch": 30,
+  "projection": {
+    "type": "globe"
+  },
+  "sources": {
+    "vector_tiles": {
+      "type": "vector",
+      "tiles": [
+        "local://tiles/checkerboard.mvt"
+      ],
+      "bounds": [
+        -180,
+        -85.0511,
+        180,
+        85.0511
+      ]
+    }
+  },
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": {
+        "background-color": "white"
+      }
+    },
+    {
+      "id": "ocean",
+      "type": "fill",
+      "source": "vector_tiles",
+      "source-layer": "water",
+      "paint": {
+        "fill-color": "black"
+      }
+    }
+  ]
+}
