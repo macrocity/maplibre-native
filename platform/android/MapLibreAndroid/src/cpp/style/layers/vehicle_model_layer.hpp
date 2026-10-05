@@ -36,6 +36,8 @@ public:
                      const jni::Array<jni::jdouble>& partTracks);
     void setLabelImage(jni::JNIEnv&, const jni::String& key, const jni::Object<Bitmap>& bitmap, jni::jfloat pixelRatio);
     void setZoomRange(jni::JNIEnv&, jni::jfloat from, jni::jfloat to);
+    void setPlateImages(jni::JNIEnv&, const jni::Array<jni::String>& ids, const jni::Array<jni::Object<Bitmap>>& bitmaps);
+    void setPlateZoomRange(jni::JNIEnv&, jni::jfloat from, jni::jfloat to);
     void setDark(jni::JNIEnv&, jni::jboolean dark);
     jni::Local<jni::String> vehicleAt(jni::JNIEnv&, jni::jfloat x, jni::jfloat y, jni::jfloat slop);
     jni::jboolean wantsFrame(jni::JNIEnv&, jni::jdouble nowMs);

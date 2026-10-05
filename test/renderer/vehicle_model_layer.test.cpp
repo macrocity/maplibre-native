@@ -9,7 +9,7 @@ namespace mln {
 class RenderVehicleModelLayerTestPeer {
 public:
     static std::shared_ptr<gl::LayerGroupGL> populate(RenderVehicleModelLayer& layer) {
-        auto group = std::make_shared<gl::LayerGroupGL>(0, 3, "vehicles");
+        auto group = std::make_shared<gl::LayerGroupGL>(0, 4, "vehicles");
         const auto make = [&]() {
             auto drawable = std::make_unique<gl::DrawableGL>("vehicle");
             auto* borrowed = drawable.get();
@@ -19,8 +19,9 @@ public:
         layer.partSlots[0][0][0] = make();
         layer.shadowSlot = make();
         layer.labelSlot = make();
+        layer.plateSlot = make();
         layer.layerGroup = group;
-        layer.builtDrawables = 3;
+        layer.builtDrawables = 4;
         return group;
     }
 
@@ -37,6 +38,8 @@ public:
         EXPECT_EQ(nullptr, layer.shadowSlot.segment);
         EXPECT_EQ(nullptr, layer.labelSlot.drawable);
         EXPECT_EQ(nullptr, layer.labelSlot.segment);
+        EXPECT_EQ(nullptr, layer.plateSlot.drawable);
+        EXPECT_EQ(nullptr, layer.plateSlot.segment);
         EXPECT_EQ(0u, layer.builtDrawables);
     }
 
@@ -46,6 +49,7 @@ public:
         EXPECT_FALSE(layer.partSlots[0][0][0].drawable->getEnabled());
         EXPECT_FALSE(layer.shadowSlot.drawable->getEnabled());
         EXPECT_FALSE(layer.labelSlot.drawable->getEnabled());
+        EXPECT_FALSE(layer.plateSlot.drawable->getEnabled());
     }
 };
 
@@ -53,7 +57,7 @@ TEST(VehicleModelLayer, RemovingDrawablesInvalidatesBorrowedPointers) {
     RenderVehicleModelLayer layer(makeMutable<style::VehicleModelLayer::Impl>("vehicles"));
     auto group = RenderVehicleModelLayerTestPeer::populate(layer);
     RenderLayer& renderer = layer;
-    EXPECT_EQ(3u, renderer.removeAllDrawables());
+    EXPECT_EQ(4u, renderer.removeAllDrawables());
     EXPECT_EQ(0u, group->getDrawableCount());
     RenderVehicleModelLayerTestPeer::expectCleared(layer);
     RenderVehicleModelLayerTestPeer::disable(layer);
@@ -61,7 +65,7 @@ TEST(VehicleModelLayer, RemovingDrawablesInvalidatesBorrowedPointers) {
     group = RenderVehicleModelLayerTestPeer::populate(layer);
     RenderVehicleModelLayerTestPeer::disable(layer);
     RenderVehicleModelLayerTestPeer::expectDisabled(layer);
-    EXPECT_EQ(3u, renderer.removeAllDrawables());
+    EXPECT_EQ(4u, renderer.removeAllDrawables());
     RenderVehicleModelLayerTestPeer::expectCleared(layer);
 }
 

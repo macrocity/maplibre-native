@@ -28,7 +28,7 @@ static_assert(sizeof(VehicleModelPropsUBO) == 8 * 16, "wrong size");
 
 struct alignas(16) VehicleModelDrawableUBO {
     /*  0 */ float base;
-    /*  4 */ float pad1;
+    /*  4 */ float mode;
     /*  8 */ float pad2;
     /* 12 */ float pad3;
     /* 16 */
@@ -176,9 +176,11 @@ struct FragmentStage {
     float4 position [[position, invariant]];
     float2 uv;
     float alpha;
+    float shade;
 };
 
-// A line-name pill over a roof, flat to the screen and of a fixed size in points.
+// A line-name pill over a roof, flat to the screen and of a fixed size in points; or, when the drawable says so
+// (`mode`), a licence plate flat on a body's face, in metres, lit like the body (macrocity/app#935).
 FragmentStage vertex vertexMain(thread const VertexStage vertx [[stage_in]],
                                 uint instance [[instance_id]],
                                 device const VehicleModelPropsUBO& props [[buffer(idVehicleModelPropsUBO)]],
@@ -188,6 +190,20 @@ FragmentStage vertex vertexMain(thread const VertexStage vertx [[stage_in]],
     const float4 anchor = records[record];
     const float4 uv = records[record + 1];
     const float4 size = records[record + 2];
+    if (drawable.mode > 0.5) {
+        // anchor: the plate's middle on the ground, and the heading times the scale; size: the middle's height, the
+        // half width (negative on a face behind), the half height, the opacity.
+        const float x = (vertx.position.x * 2.0 - 1.0) * size.y;
+        const float2 ground = anchor.xy - anchor.zw * x;
+        const float2 ahead = normalize(float2(anchor.w, anchor.z)) * sign(size.y);
+        const float lit = props.shade.x + props.shade.y * max(dot(float3(ahead, 0.0), props.light.xyz), 0.0) + props.shade.w * 0.5;
+        return {
+            .position = props.matrix * float4(ground, size.x + (vertx.position.y * 2.0 - 1.0) * size.z, 1.0),
+            .uv = float2(mix(uv.x, uv.z, vertx.position.x), mix(uv.w, uv.y, vertx.position.y)),
+            .alpha = size.w,
+            .shade = min(mix(lit, 1.0, 0.5), 1.0),
+        };
+    }
     float4 clip = props.matrix * float4(anchor.xyz, 1.0);
     const float2 points = float2((vertx.position.x * 2.0 - 1.0) * size.x, size.z + (1.0 - vertx.position.y) * size.y);
     clip.xy += points * 2.0 / props.viewport.xy * clip.w;
@@ -195,13 +211,15 @@ FragmentStage vertex vertexMain(thread const VertexStage vertx [[stage_in]],
         .position = clip,
         .uv = mix(uv.xy, uv.zw, vertx.position),
         .alpha = anchor.w,
+        .shade = 1.0,
     };
 }
 
 half4 fragment fragmentMain(FragmentStage in [[stage_in]],
                             texture2d<float, access::sample> image [[texture(0)]]) {
     constexpr sampler linearSampler(coord::normalized, filter::linear, address::clamp_to_edge);
-    return half4(image.sample(linearSampler, in.uv) * in.alpha);
+    const float4 color = image.sample(linearSampler, in.uv);
+    return half4(float4(color.rgb * in.shade, color.a) * in.alpha);
 }
 )";
 };

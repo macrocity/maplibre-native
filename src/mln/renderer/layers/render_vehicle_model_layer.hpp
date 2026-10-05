@@ -52,8 +52,19 @@ public:
         std::size_t indexCount = 0;
     };
 
+    /// Where a model carries a licence plate (macrocity/app#935): on one of its parts, in that part's frame, on the face
+    /// at `z` (ahead when positive, behind when negative), its middle `y` metres up, `halfWidth` × `halfHeight` metres.
+    struct PlateMount {
+        uint32_t part = 0;
+        float y = 0;
+        float z = 0;
+        float halfWidth = 0;
+        float halfHeight = 0;
+    };
+
     struct Model {
         std::vector<Part> parts;
+        std::vector<PlateMount> plates;
         float halfWidth = 1.28f;
         float labelHeight = 3.7f;
         /// Its whole length, cars and all: how far past the screen's edge its middle may be and still show.
@@ -74,6 +85,7 @@ private:
     bool loadModels(const std::vector<uint8_t>&);
     void buildDrawables(gfx::Context&, UniqueChangeRequestVec&);
     void buildLabelAtlas(gfx::Context&, const style::VehicleModelLabelImages&);
+    void buildPlateAtlas(gfx::Context&, const style::VehicleModelPlateImages&);
     void disable();
 
     std::array<Model, maxKinds> models;
@@ -92,6 +104,7 @@ private:
     std::array<std::array<std::array<Slot, 3>, maxParts>, maxKinds> partSlots;
     Slot shadowSlot;
     Slot labelSlot;
+    Slot plateSlot;
     std::size_t builtDrawables = 0;
 
     /// The line-name pills packed into one texture, and where each is in it (u0, v0, u1, v1; width and height in points).
@@ -104,6 +117,16 @@ private:
     };
     std::map<std::string, AtlasEntry> atlas;
 
+    /// The licence plates packed into a texture of their own, so a new plate never packs the pills again: the place
+    /// of each vehicle's plate in it, by the vehicle's index in the samples (-1 for none), kept for those samples.
+    std::shared_ptr<gfx::Texture2D> plateAtlas;
+    std::shared_ptr<const style::VehicleModelPlateImages> plateAtlasSource;
+    std::map<std::string, std::array<float, 4>> plateUVs;
+    std::vector<int32_t> vehiclePlates;
+    std::vector<std::array<float, 4>> vehiclePlateUVs;
+    std::shared_ptr<const style::VehicleModelSamples> platesFor;
+    std::shared_ptr<const style::VehicleModelPlateImages> platesFrom;
+
     /// One frame's work, kept between frames so a frame allocates nothing.
     struct Drawn {
         uint32_t vehicle;
@@ -115,6 +138,8 @@ private:
     };
     std::vector<Drawn> drawn;
     std::vector<float> records;
+    /// A frame's plate records, written after the parts and pills.
+    std::vector<float> plateRecords;
     std::vector<uint32_t> labelOrder;
     std::vector<style::VehicleModelRuntime::Hit> hits;
 

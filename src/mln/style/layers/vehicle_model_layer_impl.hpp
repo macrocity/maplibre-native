@@ -18,6 +18,9 @@ struct VehicleModelLabelImage {
 
 using VehicleModelLabelImages = std::map<std::string, VehicleModelLabelImage>;
 
+/// The licence plates' images, by the id of the vehicle that carries each.
+using VehicleModelPlateImages = std::map<std::string, std::shared_ptr<const PremultipliedImage>>;
+
 /**
  * What the render thread leaves for the host between frames: where each vehicle was drawn (for taps), the next
  * time one starts to move, and the frame counts. The render layer writes it once a frame; the host reads it.
@@ -53,8 +56,11 @@ public:
     std::shared_ptr<const std::vector<uint8_t>> models;
     std::shared_ptr<const VehicleModelSamples> samples;
     std::shared_ptr<const VehicleModelLabelImages> labels;
+    std::shared_ptr<const VehicleModelPlateImages> plates;
     float fadeFrom = 16.75f;
     float fadeTo = 17.0f;
+    float plateFrom = 18.0f;
+    float plateTo = 19.0f;
     bool dark = false;
     std::shared_ptr<VehicleModelRuntime> runtime;
 

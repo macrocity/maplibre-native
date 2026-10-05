@@ -88,6 +88,23 @@ public class VehicleModelLayer extends Layer {
   }
 
   /**
+   * The licence plates, by the id of the vehicle that carries each: drawn flat on the body where its model has a
+   * plate, at the front and at the back. A new set replaces the last one; an empty one draws none.
+   */
+  public void setPlateImages(@NonNull String[] ids, @NonNull Bitmap[] bitmaps) {
+    checkThread();
+    nativeSetPlateImages(ids, bitmaps);
+  }
+
+  /**
+   * The zooms over which the licence plates fade in; below {@code from} the layer draws none.
+   */
+  public void setPlateZoomRange(float from, float to) {
+    checkThread();
+    nativeSetPlateZoomRange(from, to);
+  }
+
+  /**
    * The dark map's light and lamps.
    */
   public void setDark(boolean dark) {
@@ -134,6 +151,12 @@ public class VehicleModelLayer extends Layer {
 
   @Keep
   private native void nativeSetZoomRange(float from, float to);
+
+  @Keep
+  private native void nativeSetPlateImages(String[] ids, Bitmap[] bitmaps);
+
+  @Keep
+  private native void nativeSetPlateZoomRange(float from, float to);
 
   @Keep
   private native void nativeSetDark(boolean dark);

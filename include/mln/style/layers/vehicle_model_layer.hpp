@@ -6,6 +6,7 @@
 #include <mln/util/image.hpp>
 
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -72,7 +73,7 @@ public:
     VehicleModelLayer(const VehicleModelLayer&) = delete;
     ~VehicleModelLayer() final;
 
-    /// The models, as the app's model file (`MCVM`, version 1): meshes in metres, +X left, +Y up, +Z ahead.
+    /// The models, as the app's model file (`MCVM`, versions 1 to 3): meshes in metres, +X left, +Y up, +Z ahead.
     void setModels(std::shared_ptr<const std::vector<uint8_t>> file);
 
     /// A new set of vehicles and their samples.
@@ -83,6 +84,14 @@ public:
 
     /// The zooms over which the models fade in; below `from` the layer draws nothing.
     void setZoomRange(float from, float to);
+
+    /// The licence plates (macrocity/app#935), by the id of the vehicle that carries them: the image of each, drawn
+    /// flat on the body where its model has a plate (models file version 3), at the front and at the back. A new set
+    /// replaces the last one; an empty set draws none.
+    void setPlateImages(std::map<std::string, PremultipliedImage> images);
+
+    /// The zooms over which the plates fade in; below `from` the layer draws none.
+    void setPlateZoomRange(float from, float to);
 
     /// The dark map's light and lamps.
     void setDark(bool dark);

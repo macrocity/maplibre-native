@@ -20,6 +20,7 @@ const LayerTypeInfo typeInfoVehicleModel{.type = "vehicle-model",
 VehicleModelLayer::Impl::Impl(const std::string& id_)
     : Layer::Impl(id_, std::string()),
       labels(std::make_shared<const VehicleModelLabelImages>()),
+      plates(std::make_shared<const VehicleModelPlateImages>()),
       runtime(std::make_shared<VehicleModelRuntime>()) {}
 
 bool VehicleModelLayer::Impl::hasLayoutDifference(const Layer::Impl&) const {
@@ -92,6 +93,27 @@ void VehicleModelLayer::setZoomRange(float from, float to) {
     auto impl_ = mutableImpl();
     impl_->fadeFrom = from;
     impl_->fadeTo = std::max(from + 0.01f, to);
+    baseImpl = std::move(impl_);
+    observer->onLayerChanged(*this);
+}
+
+void VehicleModelLayer::setPlateImages(std::map<std::string, PremultipliedImage> images) {
+    if (images.empty() && impl().plates->empty()) return;
+    auto plates = std::make_shared<VehicleModelPlateImages>();
+    for (auto& [id, image] : images) {
+        if (image.valid()) (*plates)[id] = std::make_shared<const PremultipliedImage>(std::move(image));
+    }
+    auto impl_ = mutableImpl();
+    impl_->plates = std::move(plates);
+    baseImpl = std::move(impl_);
+    observer->onLayerChanged(*this);
+}
+
+void VehicleModelLayer::setPlateZoomRange(float from, float to) {
+    if (from == impl().plateFrom && to == impl().plateTo) return;
+    auto impl_ = mutableImpl();
+    impl_->plateFrom = from;
+    impl_->plateTo = std::max(from + 0.01f, to);
     baseImpl = std::move(impl_);
     observer->onLayerChanged(*this);
 }
