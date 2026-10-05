@@ -137,6 +137,16 @@ RenderVehicleModelLayer::RenderVehicleModelLayer(Immutable<style::VehicleModelLa
 
 RenderVehicleModelLayer::~RenderVehicleModelLayer() = default;
 
+std::size_t RenderVehicleModelLayer::removeAllDrawables() {
+    // The renderer also removes drawings directly, including on each Goldfish emulator frame.
+    // Invalidate the borrowed drawable and segment pointers before their owner destroys them.
+    partSlots = {};
+    shadowSlot = {};
+    labelSlot = {};
+    builtDrawables = 0;
+    return RenderLayer::removeAllDrawables();
+}
+
 void RenderVehicleModelLayer::evaluate(const PropertyEvaluationParameters&) {
     passes = RenderPass::Translucent;
     // The layer has no style properties: what it draws comes with its impl.
@@ -255,13 +265,7 @@ void RenderVehicleModelLayer::buildDrawables(gfx::Context& context, UniqueChange
         }
     }
     auto& group = static_cast<LayerGroup&>(*layerGroup);
-    group.clearDrawables();
-    for (auto& kind : partSlots) {
-        for (auto& part : kind) part.fill(Slot{});
-    }
-    shadowSlot = {};
-    labelSlot = {};
-    builtDrawables = 0;
+    removeAllDrawables();
 
     const auto builder = context.createDrawableBuilder(getID());
     // `is3D`: the depth test of the 3D buildings, on OpenGL (their depth range) and on Metal, whatever 2D layer order

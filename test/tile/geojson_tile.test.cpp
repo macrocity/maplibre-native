@@ -16,6 +16,8 @@
 #include <mln/util/run_loop.hpp>
 #include <mln/gfx/dynamic_texture_atlas.hpp>
 
+#include <mapbox/geojsonvt.hpp>
+
 #include <memory>
 
 using namespace mln;
@@ -74,6 +76,59 @@ private:
 };
 
 } // namespace
+
+TEST(GeoJSONTile, UncachedTilesMatchHierarchicalClipping) {
+    util::RunLoop loop;
+    const auto input = mapbox::geojson::parse(R"({"type":"FeatureCollection","features":[
+        {"type":"Feature","id":1,"properties":{"name":"point"},"geometry":{"type":"Point","coordinates":[19.0546,47.4979]}},
+        {"type":"Feature","properties":{"name":"points"},"geometry":{"type":"MultiPoint","coordinates":[[179.99,0],[-179.99,0],[19.06,47.50]]}},
+        {"type":"Feature","properties":{"name":"line"},"geometry":{"type":"LineString","coordinates":[[-179,0],[0,50],[19.05,47.49],[19.06,47.50],[179,0]]}},
+        {"type":"Feature","properties":{"name":"lines"},"geometry":{"type":"MultiLineString","coordinates":[[[19.04,47.48],[19.07,47.51]],[[179.9,-1],[-179.9,1]]]}},
+        {"type":"Feature","properties":{"name":"polygon"},"geometry":{"type":"Polygon","coordinates":[[[19.04,47.48],[19.07,47.48],[19.07,47.51],[19.04,47.51],[19.04,47.48]],[[19.05,47.49],[19.05,47.50],[19.06,47.50],[19.06,47.49],[19.05,47.49]]]}},
+        {"type":"Feature","properties":{"name":"polygons"},"geometry":{"type":"MultiPolygon","coordinates":[[[[179.8,-1],[179.9,-1],[179.9,1],[179.8,1],[179.8,-1]]],[[[-179.9,-1],[-179.8,-1],[-179.8,1],[-179.9,1],[-179.9,-1]]]]}}
+    ]})");
+    for (const uint16_t buffer : {0, 64, 128, 512, 2048}) {
+        for (const double tolerance : {0.0, 0.375}) {
+            for (const bool lineMetrics : {false, true}) {
+                auto options = makeMutable<GeoJSONOptions>();
+                options->maxzoom = 15;
+                options->buffer = buffer;
+                options->tolerance = tolerance;
+                options->lineMetrics = lineMetrics;
+                mapbox::geojsonvt::Options referenceOptions;
+                referenceOptions.maxZoom = options->maxzoom;
+                referenceOptions.extent = util::EXTENT;
+                constexpr double scale = util::EXTENT / util::tileSize_D;
+                referenceOptions.buffer = static_cast<uint16_t>(buffer * scale);
+                referenceOptions.tolerance = tolerance * scale;
+                referenceOptions.lineMetrics = lineMetrics;
+                mapbox::geojsonvt::GeoJSONVT reference(input, referenceOptions);
+                auto data = GeoJSONData::create(input, Scheduler::GetSequenced(), std::move(options));
+                for (const uint8_t zoom : {0, 3, 5, 10, 14, 15, 5, 0}) {
+                    const uint32_t n = 1u << zoom;
+                    const uint32_t budapestX = static_cast<uint32_t>((19.0546 + 180) / 360 * n);
+                    const uint32_t budapestY = static_cast<uint32_t>(0.3498 * n);
+                    for (const uint32_t x : {0u, n - 1, budapestX}) {
+                        for (const uint32_t y : {n / 2, budapestY}) {
+                            SCOPED_TRACE(::testing::Message() << "buffer=" << buffer << " tolerance=" << tolerance
+                                                              << " metrics=" << lineMetrics
+                                                              << " tile=" << unsigned(zoom) << '/' << x << '/' << y);
+                            bool replied = false;
+                            data->getTile(
+                                CanonicalTileID{zoom, x, y},
+                                [&](GeoJSONData::TileFeatures actual) {
+                                    replied = true;
+                                    EXPECT_TRUE(reference.getTile(zoom, x, y).features == actual);
+                                },
+                                true);
+                            EXPECT_TRUE(replied);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 TEST(GeoJSONTile, SynchronousUpdate) {
     GeoJSONTileTest test;

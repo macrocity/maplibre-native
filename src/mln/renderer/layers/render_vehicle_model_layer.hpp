@@ -38,6 +38,8 @@ public:
                 const RenderTree&,
                 UniqueChangeRequestVec&) override;
 
+    std::size_t removeAllDrawables() override;
+
     static constexpr std::size_t maxKinds = 24;
     static constexpr std::size_t maxParts = 8;
 
@@ -59,6 +61,8 @@ public:
     };
 
 private:
+    friend class RenderVehicleModelLayerTestPeer;
+
     void transition(const TransitionParameters&) override {}
     void evaluate(const PropertyEvaluationParameters&) override;
     bool hasTransition() const override { return moving; }
