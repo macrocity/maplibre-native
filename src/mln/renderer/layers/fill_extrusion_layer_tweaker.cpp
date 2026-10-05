@@ -34,6 +34,18 @@ void FillExtrusionLayerTweaker::execute(LayerGroupBase& layerGroup, const PaintP
     const auto& crossfade = props.crossfade;
     const auto& state = parameters.state;
 
+    // A pattern that changes with both the zoom and the feature (a data-driven `step` on the zoom) is laid on the
+    // ground: each tile draws the image its own zoom chose, at that image's size in points (its pixels over its
+    // pixel ratio) at that zoom, and it scales with the walls from there. No crossfade between zooms. So a wall keeps
+    // the same pattern, at the same place and size in metres, at every camera zoom and while tiles of other zooms
+    // replace its tile; a finer zoom's image only adds detail. Otherwise the pattern is drawn at the integer camera
+    // zoom's scale with the tile's own zoom's image, both images of a tile read the same attribute, and the device's
+    // pixel ratio stands in for the image's: the windows of the 3D city changed size and count, and snapped, as the
+    // map zoomed (macrocity/app#952).
+    const bool groundPattern = evaluated.get<FillExtrusionPattern>().match(
+        [](const Faded<expression::Image>&) { return false; },
+        [](const style::PropertyExpression<expression::Image>& expression) { return !expression.isZoomConstant(); });
+
 #if !defined(NDEBUG)
     const auto label = layerGroup.getName() + "-update-uniforms";
     const auto debugGroup = parameters.encoder->createDebugGroup(label.c_str());
@@ -51,9 +63,9 @@ void FillExtrusionLayerTweaker::execute(LayerGroupBase& layerGroup, const PaintP
         .light_intensity = FillExtrusionBucket::lightIntensity(parameters.evaluatedLight),
         .vertical_gradient = evaluated.get<FillExtrusionVerticalGradient>() ? 1.0f : 0.0f,
         .opacity = evaluated.get<FillExtrusionOpacity>(),
-        .fade = crossfade.t,
-        .from_scale = crossfade.fromScale,
-        .to_scale = crossfade.toScale,
+        .fade = groundPattern ? 0.0f : crossfade.t,
+        .from_scale = groundPattern ? 1.0f : crossfade.fromScale,
+        .to_scale = groundPattern ? 1.0f : crossfade.toScale,
         .pad2 = 0};
     auto& layerUniforms = layerGroup.mutableUniformBuffers();
     layerUniforms.createOrUpdate(idFillExtrusionPropsUBO, &propsUBO, context);
@@ -98,13 +110,24 @@ void FillExtrusionLayerTweaker::execute(LayerGroupBase& layerGroup, const PaintP
         drawable.mutableUniformBuffers().createOrUpdate(idProjectionUBO, &projectionUBO, context);
 #endif
 
-        const auto tileRatio = 1 / tileID.pixelsToTileUnits(1, state.getIntegerZoom());
+        auto tileRatio = 1 / tileID.pixelsToTileUnits(1, state.getIntegerZoom());
         const auto zoomScale = state.zoomScale(tileID.canonical.z);
         const auto nearestZoomScale = state.zoomScale(state.getIntegerZoom() - tileID.canonical.z);
         const auto tileSizeAtNearestZoom = std::floor(util::tileSize_D * nearestZoomScale);
-        const auto pixelX = static_cast<int32_t>(tileSizeAtNearestZoom *
-                                                 (tileID.canonical.x + tileID.wrap * zoomScale));
-        const auto pixelY = static_cast<int32_t>(tileSizeAtNearestZoom * tileID.canonical.y);
+        auto pixelX = static_cast<int32_t>(tileSizeAtNearestZoom * (tileID.canonical.x + tileID.wrap * zoomScale));
+        auto pixelY = static_cast<int32_t>(tileSizeAtNearestZoom * tileID.canonical.y);
+        if (groundPattern) {
+            // Points a tile unit at the tile's own zoom, then image pixels for the shader, which divides an image's
+            // pixels by the device's pixel ratio. The walls measure the pattern from their own corner (edge distance)
+            // and the roofs from the data tile's, the same at every zoom: no offset of the tile in the world.
+            const auto& patternBinder = binders->get<FillExtrusionPattern>();
+            const auto imageRatio = patternBinder ? patternBinder->patternPixelRatio().value_or(parameters.pixelRatio)
+                                                  : parameters.pixelRatio;
+            tileRatio = imageRatio / parameters.pixelRatio /
+                        tileID.pixelsToTileUnits(1, drawable.getTileID()->overscaledZ);
+            pixelX = 0;
+            pixelY = 0;
+        }
         const auto numTiles = std::pow(2, tileID.canonical.z);
         const auto heightFactor = static_cast<float>(-numTiles / util::tileSize_D / 8.0);
 
