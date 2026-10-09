@@ -146,10 +146,7 @@ void RendererBackend::initShaders(gfx::ShaderRegistry& shaders, const ProgramPar
                   shaders::BuiltIn::RasterShader,
                   shaders::BuiltIn::SymbolIconShader,
                   shaders::BuiltIn::SymbolSDFShader,
-                  shaders::BuiltIn::SymbolTextAndIconShader,
-                  shaders::BuiltIn::VehicleModelShader,
-                  shaders::BuiltIn::VehicleModelShadowShader,
-                  shaders::BuiltIn::VehicleModelLabelShader>(shaders, programParameters);
+                  shaders::BuiltIn::SymbolTextAndIconShader>(shaders, programParameters);
 
     // Initialize legacy shader programs
     Programs programs(programParameters);
