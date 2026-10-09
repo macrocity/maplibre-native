@@ -36,8 +36,5 @@
 #include <mln/shaders/gl/symbol_icon.hpp>
 #include <mln/shaders/gl/symbol_sdf.hpp>
 #include <mln/shaders/gl/symbol_text_and_icon.hpp>
-#include <mln/shaders/gl/vehicle_model.hpp>
-#include <mln/shaders/gl/vehicle_model_shadow.hpp>
-#include <mln/shaders/gl/vehicle_model_label.hpp>
 #include <mln/shaders/gl/wide_vector.hpp>
 #endif

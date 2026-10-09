@@ -283,7 +283,6 @@ list(APPEND INCLUDE_FILES
     ${PROJECT_SOURCE_DIR}/include/mln/layermanager/layer_manager.hpp
     ${PROJECT_SOURCE_DIR}/include/mln/layermanager/line_layer_factory.hpp
     ${PROJECT_SOURCE_DIR}/include/mln/layermanager/location_indicator_layer_factory.hpp
-    ${PROJECT_SOURCE_DIR}/include/mln/layermanager/vehicle_model_layer_factory.hpp
     ${PROJECT_SOURCE_DIR}/include/mln/layermanager/raster_layer_factory.hpp
     ${PROJECT_SOURCE_DIR}/include/mln/layermanager/symbol_layer_factory.hpp
     ${PROJECT_SOURCE_DIR}/include/mln/map/bound_options.hpp
@@ -397,7 +396,6 @@ list(APPEND INCLUDE_FILES
     ${PROJECT_SOURCE_DIR}/include/mln/style/layers/color_relief_layer.hpp
     ${PROJECT_SOURCE_DIR}/include/mln/style/layers/line_layer.hpp
     ${PROJECT_SOURCE_DIR}/include/mln/style/layers/location_indicator_layer.hpp
-    ${PROJECT_SOURCE_DIR}/include/mln/style/layers/vehicle_model_layer.hpp
     ${PROJECT_SOURCE_DIR}/include/mln/style/layers/raster_layer.hpp
     ${PROJECT_SOURCE_DIR}/include/mln/style/layers/symbol_layer.hpp
     ${PROJECT_SOURCE_DIR}/include/mln/style/light.hpp
@@ -557,11 +555,6 @@ list(APPEND SRC_FILES
     ${PROJECT_SOURCE_DIR}/src/mln/style/layers/location_indicator_layer_impl.hpp
     ${PROJECT_SOURCE_DIR}/src/mln/style/layers/location_indicator_layer_properties.cpp
     ${PROJECT_SOURCE_DIR}/src/mln/style/layers/location_indicator_layer_properties.hpp
-    ${PROJECT_SOURCE_DIR}/src/mln/layermanager/vehicle_model_layer_factory.cpp
-    ${PROJECT_SOURCE_DIR}/src/mln/renderer/layers/render_vehicle_model_layer.cpp
-    ${PROJECT_SOURCE_DIR}/src/mln/renderer/layers/render_vehicle_model_layer.hpp
-    ${PROJECT_SOURCE_DIR}/src/mln/style/layers/vehicle_model_layer.cpp
-    ${PROJECT_SOURCE_DIR}/src/mln/style/layers/vehicle_model_layer_impl.hpp
     ${PROJECT_SOURCE_DIR}/src/mln/layout/circle_layout.hpp
     ${PROJECT_SOURCE_DIR}/src/mln/layout/clip_lines.cpp
     ${PROJECT_SOURCE_DIR}/src/mln/layout/clip_lines.hpp

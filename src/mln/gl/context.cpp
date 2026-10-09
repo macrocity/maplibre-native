@@ -802,7 +802,7 @@ void Context::draw(const gfx::DrawMode& drawMode,
                                         GL_UNSIGNED_SHORT,
                                         reinterpret_cast<GLvoid*>(sizeof(uint16_t) * indexOffset)));
     } else {
-        // Instances that read their own data by gl_InstanceID (the vehicle models); OpenGL ES 3.0 has it.
+        // Instances that read their own data by gl_InstanceID; OpenGL ES 3.0 has it.
         MBGL_CHECK_ERROR(glDrawElementsInstanced(Enum<gfx::DrawModeType>::to(drawMode.type),
                                                  static_cast<GLsizei>(indexLength),
                                                  GL_UNSIGNED_SHORT,

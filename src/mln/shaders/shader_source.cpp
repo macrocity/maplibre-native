@@ -41,9 +41,6 @@ MBGL_DEFINE_ENUM(BuiltIn,
                   {BuiltIn::SymbolIconShader, "SymbolIconShader"},
                   {BuiltIn::SymbolSDFShader, "SymbolSDFShader"},
                   {BuiltIn::SymbolTextAndIconShader, "SymbolTextAndIconShader"},
-                  {BuiltIn::VehicleModelShader, "VehicleModelShader"},
-                  {BuiltIn::VehicleModelShadowShader, "VehicleModelShadowShader"},
-                  {BuiltIn::VehicleModelLabelShader, "VehicleModelLabelShader"},
                   {BuiltIn::WideVectorShader, "WideVectorShader"}});
 
 } // namespace mln
