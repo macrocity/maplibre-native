@@ -131,6 +131,9 @@ void RenderCustomLayer::update([[maybe_unused]] gfx::ShaderRegistry& shaders,
 
     if (needsInitialize) {
         MBGL_CHECK_ERROR(initializeHost(host, context));
+        // Initialization can use raw graphics calls before the layer upload pass.
+        // Its bindings are no longer represented by the renderer's cached state.
+        context.setDirtyState();
         needsInitialize = false;
     }
 
