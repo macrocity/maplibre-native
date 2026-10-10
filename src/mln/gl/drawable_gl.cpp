@@ -32,9 +32,9 @@ void DrawableGL::draw(PaintParameters& parameters) const {
 
     if (shader) {
         const auto& shaderGL = static_cast<const ShaderProgramGL&>(*shader);
-        if (shaderGL.getGLProgramID() != context.program.getCurrentValue()) {
-            context.program = shaderGL.getGLProgramID();
-        }
+        // State assignment also restores a program invalidated by custom drawing.
+        // Comparing the cached ID alone skips that restoration when IDs match.
+        context.program = shaderGL.getGLProgramID();
     }
     if (!shader || context.program.getCurrentValue() == 0) {
         mln::Log::Warning(Event::General, "Missing shader for drawable " + util::toString(getID()) + "/" + getName());
