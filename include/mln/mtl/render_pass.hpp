@@ -93,8 +93,8 @@ private:
     std::array<MTLTexturePtr, maxBinds> fragmentTextureBindings;
     std::array<MTLSamplerStatePtr, maxBinds> fragmentSamplerStates;
 
-    MTL::CullMode currentCullMode = MTL::CullModeNone;
-    MTL::Winding currentWinding = MTL::WindingClockwise;
+    std::optional<MTL::CullMode> currentCullMode;
+    std::optional<MTL::Winding> currentWinding;
     MTL::ScissorRect currentScissorRect;
 
     size_t width;
