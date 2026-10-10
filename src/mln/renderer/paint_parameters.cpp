@@ -121,17 +121,22 @@ ProjectionData PaintParameters::projectionDataForTile(const UnwrappedTileID& til
     return state.getProjectionData(tileID, aligned ? transformParams.alignedProjMatrix : transformParams.projMatrix);
 }
 
-gfx::DepthMode PaintParameters::depthModeForSublayer([[maybe_unused]] uint8_t n, gfx::DepthMaskType mask) const {
+gfx::DepthMode PaintParameters::depthModeForSublayer([[maybe_unused]] uint8_t n,
+                                                  [[maybe_unused]] gfx::DepthMaskType mask) const {
+#if MLN_RENDER_BACKEND_OPENGL
     // On the globe, 2D layers are ordered by draw order alone; their Z is the back-hemisphere clip.
     if (currentLayer < opaquePassCutoff || state.isGlobeRendering()) {
         return gfx::DepthMode::disabled();
     }
 
-#if MLN_RENDER_BACKEND_OPENGL
     float depth = depthRangeSize + ((1 + currentLayer) * numSublayers + n) * depthEpsilon;
     return gfx::DepthMode{gfx::DepthFunctionType::LessEqual, mask, {depth, depth}};
 #else
-    return gfx::DepthMode{.func = gfx::DepthFunctionType::LessEqual, .mask = mask};
+    // 2D layers already follow painter's order. Their former projection-matrix depth offset
+    // disappears when a large tile translation is cast to float32. The resulting rounding
+    // noise makes one triangle of a symbol quad fail the depth test (macrocity/app#1284).
+    // GL keeps its precise depth-range ordering; 3D drawables keep their own depth test.
+    return gfx::DepthMode::disabled();
 #endif
 }
 

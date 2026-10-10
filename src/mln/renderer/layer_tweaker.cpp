@@ -86,14 +86,8 @@ ProjectionData LayerTweaker::getProjectionData(const UnwrappedTileID& tileID,
         data.translate = util::cast<double>(
             RenderTile::tileUnitTranslation(tileID, translation, anchor, parameters.state));
     }
-#if MLN_GLOBE_DEPTH_OFFSET_IN_SHADER
-    // The same per-layer shift `multiplyWithProjectionMatrix` bakes into the Mercator matrix.
-    if (!drawable.getIs3D() && drawable.getEnableDepth()) {
-        data.depthOffset = ((1 + parameters.currentLayer) * PaintParameters::numSublayers -
-                            drawable.getSubLayerIndex()) *
-                           PaintParameters::depthEpsilon;
-    }
-#endif
+    // Non-GL 2D layers use painter's order, including the Mercator fallback of the globe.
+    // Leave the shader depth offset at zero, just as in the tile projection matrix.
     return data;
 }
 
@@ -159,20 +153,8 @@ void LayerTweaker::multiplyWithProjectionMatrix(/*in-out*/ mat4& matrix,
     const auto& projMatrixRef = aligned ? transformParams.alignedProjMatrix
                                         : (nearClipped ? transformParams.nearClippedProjMatrix
                                                        : transformParams.projMatrix);
-#if !MLN_RENDER_BACKEND_OPENGL
-    // If this drawable is participating in depth testing, offset the
-    // projection matrix NDC depth range for the drawable's layer and sublayer.
-    if (!is3d && useDepth) {
-        // copy and adjust the projection matrix
-        mat4 projMatrix = projMatrixRef;
-        projMatrix[14] -= ((1 + currentLayerIndex) * PaintParameters::numSublayers - subLayerIndex) *
-                          PaintParameters::depthEpsilon;
-        // multiply with the copy
-        matrix::multiply(matrix, projMatrix, matrix);
-        // early return
-        return;
-    }
-#endif
+    // A tiny 2D depth offset does not survive the float32 tile matrix at close zooms.
+    // PaintParameters disables that depth test on non-GL backends instead.
     matrix::multiply(matrix, projMatrixRef, matrix);
 }
 
