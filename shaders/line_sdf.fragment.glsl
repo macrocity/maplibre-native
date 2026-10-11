@@ -35,6 +35,8 @@ in float v_gamma_scale;
 in float v_tile_x;
 #endif
 
+in lowp float v_tile_fade;
+
 void main() {
 #ifdef PROJECTION_GLOBE
     if (clippedAtAntimeridian(v_tile_x)) {
@@ -62,6 +64,8 @@ void main() {
     alpha *= smoothstep(0.5 - u_sdfgamma / floorwidth, 0.5 + u_sdfgamma / floorwidth, sdfdist);
 
     fragColor = color * (alpha * opacity);
+
+    fragColor *= v_tile_fade;
 
 #ifdef OVERDRAW_INSPECTOR
     fragColor = vec4(1.0);

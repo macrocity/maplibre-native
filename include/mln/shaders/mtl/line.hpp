@@ -31,7 +31,7 @@ struct alignas(16) LineDrawableUBO {
     /* 80 */ float gapwidth_t;
     /* 84 */ float offset_t;
     /* 88 */ float width_t;
-    /* 92 */ float pad1;
+    /* 92 */ float tile_fade;
     /* 96 */
 };
 static_assert(sizeof(LineDrawableUBO) == 6 * 16, "wrong size");
@@ -49,7 +49,7 @@ struct alignas(16) LineGradientDrawableUBO {
     /* 76 */ float gapwidth_t;
     /* 80 */ float offset_t;
     /* 84 */ float width_t;
-    /* 88 */ float pad1;
+    /* 88 */ float tile_fade;
     /* 92 */ float pad2;
     /* 96 */
 };
@@ -80,7 +80,7 @@ struct alignas(16) LinePatternTilePropsUBO {
     /* 32 */ float4 scale;
     /* 48 */ float2 texsize;
     /* 56 */ float fade;
-    /* 60 */ float pad2;
+    /* 60 */ float tile_fade;
     /* 64 */
 };
 static_assert(sizeof(LinePatternTilePropsUBO) == 4 * 16, "wrong size");
@@ -104,7 +104,7 @@ struct alignas(16) LineSDFDrawableUBO {
     /* 108 */ float offset_t;
     /* 112 */ float width_t;
     /* 116 */ float floorwidth_t;
-    /* 120 */ float pad1;
+    /* 120 */ float tile_fade;
     /* 124 */ float pad2;
     /* 128 */
 };
@@ -227,6 +227,7 @@ struct FragmentStage {
 #if !defined(HAS_UNIFORM_u_opacity)
     float opacity;
 #endif
+    half tile_fade;
 };
 
 FragmentStage vertex vertexMain(thread const VertexStage vertx [[stage_in]],
@@ -322,6 +323,7 @@ FragmentStage vertex vertexMain(thread const VertexStage vertx [[stage_in]],
 #if !defined(HAS_UNIFORM_u_opacity)
         .opacity     = unpack_mix_float(vertx.opacity, drawable.opacity_t),
 #endif
+        .tile_fade = half(drawable.tile_fade),
     };
 }
 
@@ -368,7 +370,7 @@ half4 fragment fragmentMain(FragmentStage in [[stage_in]],
     const float blur2 = (blur + 1.0 / DEVICE_PIXEL_RATIO) * in.gamma_scale;
     const float alpha = clamp(min(dist - (in.width2.y - blur2), in.width2.x - dist) / blur2, 0.0, 1.0);
 
-    return half4(color * (alpha * opacity));
+    return in.tile_fade * half4(color * (alpha * opacity));
 }
 )";
 };
@@ -422,6 +424,7 @@ struct FragmentStage {
 #if !defined(HAS_UNIFORM_u_opacity)
     half opacity;
 #endif
+    half tile_fade;
 };
 
 FragmentStage vertex vertexMain(thread const VertexStage vertx [[stage_in]],
@@ -516,6 +519,7 @@ FragmentStage vertex vertexMain(thread const VertexStage vertx [[stage_in]],
 #if !defined(HAS_UNIFORM_u_opacity)
         .opacity      = half(opacity),
 #endif
+        .tile_fade = half(drawable.tile_fade),
     };
 }
 
@@ -556,7 +560,7 @@ half4 fragment fragmentMain(FragmentStage in [[stage_in]],
     constexpr sampler sampler2d(coord::normalized, filter::linear);
     const float4 color = gradientTexture.sample(sampler2d, float2(in.lineprogress, 0.5));
 
-    return half4(color * (alpha * opacity));
+    return in.tile_fade * half4(color * (alpha * opacity));
 }
 )";
 };
@@ -814,7 +818,7 @@ half4 fragment fragmentMain(FragmentStage in [[stage_in]],
 
     const float4 color = mix(image0.sample(image0_sampler, pos_a), image0.sample(image0_sampler, pos_b), tileProps.fade);
 
-    return half4(color * alpha * opacity);
+    return half(tileProps.tile_fade) * half4(color * alpha * opacity);
 }
 )";
 };
@@ -882,6 +886,7 @@ struct FragmentStage {
 #if !defined(HAS_UNIFORM_u_floorwidth)
     float floorwidth;
 #endif
+    half tile_fade;
 };
 
 FragmentStage vertex vertexMain(thread const VertexStage vertx [[stage_in]],
@@ -991,6 +996,7 @@ FragmentStage vertex vertexMain(thread const VertexStage vertx [[stage_in]],
 #if !defined(HAS_UNIFORM_u_floorwidth)
         .floorwidth   = floorwidth,
 #endif
+        .tile_fade = half(drawable.tile_fade),
     };
 }
 
@@ -1056,7 +1062,7 @@ half4 fragment fragmentMain(FragmentStage in [[stage_in]],
     const float alpha = clamp(min(dist - (in.width2.y - blur2), in.width2.x - dist) / blur2, 0.0, 1.0) *
                         smoothstep(0.5 - tileProps.sdfgamma / floorwidth, 0.5 + tileProps.sdfgamma / floorwidth, sdfdist);
 
-    return half4(color * (alpha * opacity));
+    return in.tile_fade * half4(color * (alpha * opacity));
 }
 )";
 };

@@ -15,7 +15,7 @@ layout (std140) uniform FillOutlineDrawableUBO {
     // Interpolations
     highp float u_outline_color_t;
     highp float u_opacity_t;
-    lowp float drawable_pad1;
+    lowp float u_tile_fade;
     lowp float drawable_pad2;
 };
 
@@ -35,7 +35,10 @@ out vec2 v_pos;
 #pragma mapbox: define highp vec4 outline_color
 #pragma mapbox: define lowp float opacity
 
+out lowp float v_tile_fade;
+
 void main() {
+    v_tile_fade = u_tile_fade;
     #pragma mapbox: initialize highp vec4 outline_color
     #pragma mapbox: initialize lowp float opacity
 

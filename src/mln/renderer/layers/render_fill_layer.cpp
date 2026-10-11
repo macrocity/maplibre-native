@@ -284,7 +284,7 @@ void RenderFillLayer::update(gfx::ShaderRegistry& shaders,
         return tileID && !hasRenderTile(*tileID);
     });
 
-    fillTileLayerGroup->setStencilTiles(renderTiles);
+    fillTileLayerGroup->setStencilTiles(clippedRenderTiles());
 
     StringIDSetsPair propertiesAsUniforms;
     for (const RenderTile& tile : *renderTiles) {
@@ -642,6 +642,7 @@ void RenderFillLayer::update(gfx::ShaderRegistry& shaders,
             }
         }
     }
+    applyTileFades(*fillTileLayerGroup);
 }
 
 } // namespace mln

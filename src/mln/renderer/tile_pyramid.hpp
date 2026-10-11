@@ -12,11 +12,13 @@
 #include <mln/util/mat4.hpp>
 #include <mln/util/feature.hpp>
 #include <mln/util/range.hpp>
+#include <mln/util/chrono.hpp>
 
 #include <memory>
 #include <unordered_map>
 #include <vector>
 #include <map>
+#include <set>
 
 namespace mln {
 
@@ -71,7 +73,21 @@ public:
     void clearAll();
 
     void updateFadingTiles();
-    bool hasFadingTiles() const { return fadingTiles; }
+    bool hasFadingTiles() const { return fadingTiles || geometryFading; }
+
+    /// The geometry crossfade as the tile cover changes (a whole zoom crossed, a tile loaded over the placeholder that
+    /// stood in for it): vector tiles of one source are generalised differently at each zoom, and swapping one set for
+    /// the next in a frame made the map jump. A tile newly drawn comes in over the first half of `geometryFadeDuration`;
+    /// a tile no longer in the cover stays drawn under it ("retiring") and goes over the second half. Where both draw
+    /// the same thing the new one already covers the old one, so nothing dims; what only the old one drew fades out.
+    /// Only layers that take the retiring tiles (`RenderLayer::fadesTileGeometry`, fill and line) draw them.
+    static constexpr Duration geometryFadeDuration = std::chrono::milliseconds(300);
+    struct TileFade {
+        float opacity = 1.0f;
+        bool retiring = false;
+    };
+    /// The tile's crossfade at `now` (Continuous mode only; a whole tile otherwise).
+    TileFade tileFade(const UnwrappedTileID&, TimePoint now) const;
 
 private:
     void addRenderTile(const UnwrappedTileID& tileID, Tile& tile);
@@ -87,6 +103,13 @@ private:
 
     bool fadingTiles = false;
     bool cacheEnabled = true;
+
+    // the geometry crossfade (`tileFade`): when each drawn tile came in, when each retiring one left the cover
+    bool continuous = false;
+    bool geometryFading = false;
+    std::map<UnwrappedTileID, TimePoint> shownAt;
+    std::map<UnwrappedTileID, TimePoint> retiredAt;
+    std::set<UnwrappedTileID> retiring;
 };
 
 } // namespace mln

@@ -25,7 +25,7 @@ layout (std140) uniform FillOutlineDrawableUBO {
     // Interpolations
     highp float u_outline_color_t;
     highp float u_opacity_t;
-    lowp float drawable_pad1;
+    lowp float u_tile_fade;
     lowp float drawable_pad2;
 };
 
@@ -51,7 +51,10 @@ layout (location = 2) in lowp vec2 a_opacity;
 out lowp float opacity;
 #endif
 
+out lowp float v_tile_fade;
+
 void main() {
+    v_tile_fade = u_tile_fade;
     #ifndef HAS_UNIFORM_u_outline_color
 outline_color = unpack_mix_color(a_outline_color, u_outline_color_t);
 #else
@@ -85,6 +88,8 @@ in highp vec4 outline_color;
 in lowp float opacity;
 #endif
 
+in lowp float v_tile_fade;
+
 void main() {
     #ifdef HAS_UNIFORM_u_outline_color
 highp vec4 outline_color = u_outline_color;
@@ -96,6 +101,8 @@ lowp float opacity = u_opacity;
     float dist = length(v_pos - gl_FragCoord.xy);
     float alpha = 1.0 - smoothstep(0.0, 1.0, dist);
     fragColor = outline_color * (alpha * opacity);
+
+    fragColor *= v_tile_fade;
 
 #ifdef OVERDRAW_INSPECTOR
     fragColor = vec4(1.0);

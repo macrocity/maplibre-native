@@ -40,7 +40,7 @@ layout (std140) uniform LineSDFDrawableUBO {
     lowp float u_offset_t;
     lowp float u_width_t;
     lowp float u_floorwidth_t;
-    lowp float drawable_pad1;
+    lowp float u_tile_fade;
     lowp float drawable_pad2;
 };
 
@@ -74,7 +74,10 @@ out float v_gamma_scale;
 out float v_tile_x;
 #endif
 
+out lowp float v_tile_fade;
+
 void main() {
+    v_tile_fade = u_tile_fade;
     #pragma mapbox: initialize highp vec4 color
     #pragma mapbox: initialize lowp float blur
     #pragma mapbox: initialize lowp float opacity

@@ -10,11 +10,15 @@ layout (std140) uniform FillEvaluatedPropsUBO {
 #pragma mapbox: define highp vec4 color
 #pragma mapbox: define lowp float opacity
 
+in lowp float v_tile_fade;
+
 void main() {
     #pragma mapbox: initialize highp vec4 color
     #pragma mapbox: initialize lowp float opacity
 
     fragColor = color * opacity;
+
+    fragColor *= v_tile_fade;
 
 #ifdef OVERDRAW_INSPECTOR
     fragColor = vec4(1.0);

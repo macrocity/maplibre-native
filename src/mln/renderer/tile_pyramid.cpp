@@ -235,6 +235,10 @@ void TilePyramid::update(const std::vector<Immutable<style::LayerProperties>>& l
                                  zoomRange,
                                  maxParentTileOverscaleFactor);
 
+    // The geometry crossfade (`tileFade`): a tile that leaves the cover stays drawn, under the cover, for the fade.
+    const TimePoint now = Clock::now();
+    continuous = parameters.mode == MapMode::Continuous;
+    retiring.clear();
     for (auto previouslyRenderedTile : previouslyRenderedTiles) {
         Tile& tile = previouslyRenderedTile.second;
         tile.markRenderedPreviously();
@@ -244,6 +248,56 @@ void TilePyramid::update(const std::vector<Immutable<style::LayerProperties>>& l
             retainTileFn(tile, TileNecessity::Optional);
             addRenderTile(previouslyRenderedTile.first, tile);
         }
+        if (continuous && tile.isRenderable()) {
+            auto [entry, fresh] = retiredAt.emplace(previouslyRenderedTile.first, now);
+            if (fresh) {
+                // a tile still coming in leaves from where it had come to, not from whole
+                const float shown = tileFade(previouslyRenderedTile.first, now).opacity;
+                if (shown < 1.0f) entry->second = now - geometryFadeDuration / 2 - std::chrono::duration_cast<Duration>(geometryFadeDuration / 2 * (1.0f - shown));
+            }
+            const auto left = entry->second;
+            if (now - left < geometryFadeDuration) {
+                retainTileFn(tile, TileNecessity::Optional);
+                addRenderTile(previouslyRenderedTile.first, tile);
+                retiring.insert(previouslyRenderedTile.first);
+            }
+        }
+    }
+    // A tile drawn in the cover again is no longer leaving; one drawn for the first time (or again) comes in now.
+    geometryFading = false;
+    std::map<UnwrappedTileID, float> returning;
+    for (auto it = retiredAt.begin(); it != retiredAt.end();) {
+        const bool drawn = renderedTiles.count(it->first) != 0;
+        if (drawn && !retiring.count(it->first)) {
+            // back in the cover while leaving (a pinch to and fro round a whole zoom): it comes in from where it was
+            const double half = std::chrono::duration<double>(geometryFadeDuration).count() / 2;
+            const double since = std::chrono::duration<double>(now - it->second).count();
+            returning[it->first] = static_cast<float>(1.0 - std::clamp((since - half) / half, 0.0, 1.0));
+        }
+        if ((drawn && !retiring.count(it->first)) || (!drawn && now - it->second >= geometryFadeDuration)) {
+            it = retiredAt.erase(it);
+        } else {
+            geometryFading = geometryFading || retiring.count(it->first) != 0;
+            ++it;
+        }
+    }
+    for (auto it = shownAt.begin(); it != shownAt.end();) {
+        if (!renderedTiles.count(it->first) || retiring.count(it->first)) {
+            it = shownAt.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    for (const auto& entry : renderedTiles) {
+        if (retiring.count(entry.first)) continue;
+        auto [shownEntry, fresh] = shownAt.emplace(entry.first, now);
+        if (fresh) {
+            if (const auto back = returning.find(entry.first); back != returning.end()) {
+                shownEntry->second = now - std::chrono::duration_cast<Duration>(geometryFadeDuration / 2 * back->second);
+            }
+        }
+        const auto shown = shownEntry->second;
+        geometryFading = geometryFading || (continuous && now - shown < geometryFadeDuration / 2);
     }
 
     if (type != SourceType::Annotations && cacheEnabled) {
@@ -382,6 +436,8 @@ std::unordered_map<std::string, std::vector<Feature>> TilePyramid::queryRendered
     for (const auto& entry : sortedTiles) {
         const UnwrappedTileID& id = entry.first;
         Tile& tile = entry.second;
+        // a tile leaving the cover is only fading out under its replacement: its features are not the map's
+        if (retiring.count(id)) continue;
 
         const auto scale = static_cast<float>(transformState.getScale() /
                                               (1 << id.canonical.z)); // equivalent to std::pow(2,
@@ -443,6 +499,10 @@ void TilePyramid::dumpDebugLogs() const {
 
 void TilePyramid::clearAll() {
     fadingTiles = false;
+    geometryFading = false;
+    shownAt.clear();
+    retiredAt.clear();
+    retiring.clear();
     tiles.clear();
     renderedTiles.clear();
     cache.clear();
@@ -451,6 +511,23 @@ void TilePyramid::clearAll() {
 void TilePyramid::addRenderTile(const UnwrappedTileID& tileID, Tile& tile) {
     assert(tile.isRenderable());
     renderedTiles.emplace(tileID, tile);
+}
+
+TilePyramid::TileFade TilePyramid::tileFade(const UnwrappedTileID& id, TimePoint now) const {
+    if (!continuous) return {};
+    const auto smooth = [](double t) {
+        t = std::clamp(t, 0.0, 1.0);
+        return static_cast<float>(t * t * (3 - 2 * t));
+    };
+    const double half = std::chrono::duration<double>(geometryFadeDuration).count() / 2;
+    if (retiring.count(id)) {
+        const auto left = retiredAt.find(id);
+        const double since = left == retiredAt.end() ? 0 : std::chrono::duration<double>(now - left->second).count();
+        return {1.0f - smooth((since - half) / half), true};
+    }
+    const auto shown = shownAt.find(id);
+    if (shown == shownAt.end()) return {};
+    return {smooth(std::chrono::duration<double>(now - shown->second).count() / half), false};
 }
 
 void TilePyramid::updateFadingTiles() {

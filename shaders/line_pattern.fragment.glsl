@@ -4,7 +4,7 @@ layout (std140) uniform LinePatternTilePropsUBO {
     mediump vec4 u_scale;
     highp vec2 u_texsize;
     highp float u_fade;
-    lowp float tileprops_pad1;
+    lowp float u_tile_fade;
 };
 
 layout (std140) uniform LineEvaluatedPropsUBO {
@@ -88,6 +88,8 @@ void main() {
     vec4 color = mix(texture(u_image, pos_a), texture(u_image, pos_b), u_fade);
 
     fragColor = color * alpha * opacity;
+
+    fragColor *= u_tile_fade;
 
 #ifdef OVERDRAW_INSPECTOR
     fragColor = vec4(1.0);

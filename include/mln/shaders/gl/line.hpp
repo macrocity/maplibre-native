@@ -41,7 +41,7 @@ layout (std140) uniform LineDrawableUBO {
     lowp float u_gapwidth_t;
     lowp float u_offset_t;
     lowp float u_width_t;
-    lowp float drawable_pad1;
+    lowp float u_tile_fade;
 };
 
 layout (std140) uniform LineEvaluatedPropsUBO {
@@ -87,7 +87,10 @@ layout (location = 7) in mediump vec2 a_width;
 out float v_tile_x;
 #endif
 
+out lowp float v_tile_fade;
+
 void main() {
+    v_tile_fade = u_tile_fade;
     #ifndef HAS_UNIFORM_u_color
 color = unpack_mix_color(a_color, u_color_t);
 #else
@@ -208,6 +211,8 @@ in lowp float opacity;
 in float v_tile_x;
 #endif
 
+in lowp float v_tile_fade;
+
 void main() {
 #ifdef PROJECTION_GLOBE
     if (clippedAtAntimeridian(v_tile_x)) {
@@ -234,6 +239,8 @@ lowp float opacity = u_opacity;
     float alpha = clamp(min(dist - (v_width2.t - blur2), v_width2.s - dist) / blur2, 0.0, 1.0);
 
     fragColor = color * (alpha * opacity);
+
+    fragColor *= v_tile_fade;
 
 #ifdef OVERDRAW_INSPECTOR
     fragColor = vec4(1.0);

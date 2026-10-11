@@ -31,7 +31,7 @@ layout (std140) uniform LineDrawableUBO {
     lowp float u_gapwidth_t;
     lowp float u_offset_t;
     lowp float u_width_t;
-    lowp float drawable_pad1;
+    lowp float u_tile_fade;
 };
 
 layout (std140) uniform LineEvaluatedPropsUBO {
@@ -62,7 +62,10 @@ out highp float v_linesofar;
 out float v_tile_x;
 #endif
 
+out lowp float v_tile_fade;
+
 void main() {
+    v_tile_fade = u_tile_fade;
     #pragma mapbox: initialize highp vec4 color
     #pragma mapbox: initialize lowp float blur
     #pragma mapbox: initialize lowp float opacity

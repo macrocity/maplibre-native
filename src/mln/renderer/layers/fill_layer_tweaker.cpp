@@ -124,7 +124,7 @@ void FillLayerTweaker::execute(LayerGroupBase& layerGroup, const PaintParameters
 
                     .color_t = std::get<0>(binders->get<FillColor>()->interpolationFactor(zoom)),
                     .opacity_t = std::get<0>(binders->get<FillOpacity>()->interpolationFactor(zoom)),
-                    .pad1 = 0,
+                    .tile_fade = drawable.getTileFade(),
                     .pad2 = 0
                 };
 
@@ -143,7 +143,7 @@ void FillLayerTweaker::execute(LayerGroupBase& layerGroup, const PaintParameters
 
                     .outline_color_t = std::get<0>(binders->get<FillOutlineColor>()->interpolationFactor(zoom)),
                     .opacity_t = std::get<0>(binders->get<FillOpacity>()->interpolationFactor(zoom)),
-                    .pad1 = 0,
+                    .tile_fade = drawable.getTileFade(),
                     .pad2 = 0
                 };
 
@@ -179,7 +179,7 @@ void FillLayerTweaker::execute(LayerGroupBase& layerGroup, const PaintParameters
                     .pattern_to = patternPosB ? util::cast<float>(patternPosB->tlbr()) : std::array<float, 4>{0},
 
                     .texsize = {static_cast<float>(textureSize.width), static_cast<float>(textureSize.height)},
-                    .pad1 = 0, .pad2 = 0
+                    .tile_fade = drawable.getTileFade(), .pad2 = 0
                 };
 
 #if !MLN_UBO_CONSOLIDATION
@@ -215,7 +215,7 @@ void FillLayerTweaker::execute(LayerGroupBase& layerGroup, const PaintParameters
                     .pattern_to = patternPosB ? util::cast<float>(patternPosB->tlbr()) : std::array<float, 4>{0},
 
                     .texsize = {static_cast<float>(textureSize.width), static_cast<float>(textureSize.height)},
-                    .pad1 = 0, .pad2 = 0
+                    .tile_fade = drawable.getTileFade(), .pad2 = 0
                 };
 
 #if !MLN_UBO_CONSOLIDATION
@@ -232,7 +232,7 @@ void FillLayerTweaker::execute(LayerGroupBase& layerGroup, const PaintParameters
 #endif
                     .matrix = util::cast<float>(matrix),
                     .ratio = 1.0f / tileID.pixelsToTileUnits(1.0f, parameters.state.getZoom()),
-                    .pad1 = 0,
+                    .tile_fade = drawable.getTileFade(),
                     .pad2 = 0,
                     .pad3 = 0
                 };

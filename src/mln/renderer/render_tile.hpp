@@ -58,6 +58,11 @@ public:
     const OverscaledTileID& getOverscaledTileID() const;
     bool holdForFade() const;
 
+    /// The geometry crossfade (TilePyramid::tileFade): how much of the tile fill and line layers draw, and whether it
+    /// has left the cover and stays only under the tiles that replaced it (drawn without their clipping).
+    float fadeOpacity = 1.0f;
+    bool retiring = false;
+
     Bucket* getBucket(const style::Layer::Impl&) const;
     const LayerRenderData* getLayerRenderData(const style::Layer::Impl&) const;
     std::optional<ImagePosition> getPattern(const std::string& pattern) const;

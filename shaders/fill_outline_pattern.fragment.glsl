@@ -2,7 +2,7 @@ layout (std140) uniform FillOutlinePatternTilePropsUBO {
     highp vec4 u_pattern_from;
     highp vec4 u_pattern_to;
     highp vec2 u_texsize;
-    lowp float tileprops_pad1;
+    lowp float u_tile_fade;
     lowp float tileprops_pad2;
 };
 
@@ -50,6 +50,8 @@ void main() {
 
 
     fragColor = mix(color1, color2, u_fade) * alpha * opacity;
+
+    fragColor *= u_tile_fade;
 
 #ifdef OVERDRAW_INSPECTOR
     fragColor = vec4(1.0);

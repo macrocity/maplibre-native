@@ -573,12 +573,17 @@ void RenderTileSource::prepare(const SourcePrepareParameters& parameters) {
     MLN_ZONE_STR(baseImpl->id);
     bearing = static_cast<float>(parameters.transform.state.getBearing());
     filteredRenderTiles = nullptr;
+    fadingGeometryRenderTiles = nullptr;
     renderTilesSortedByY = nullptr;
     auto tiles = makeMutable<std::vector<RenderTile>>();
     tiles->reserve(tilePyramid.getRenderedTiles().size());
+    const TimePoint now = Clock::now();
     for (auto& entry : tilePyramid.getRenderedTiles()) {
         tiles->emplace_back(entry.first, entry.second);
         tiles->back().prepare(parameters);
+        const auto fade = tilePyramid.tileFade(entry.first, now);
+        tiles->back().fadeOpacity = fade.opacity;
+        tiles->back().retiring = fade.retiring;
     }
     featureState.coalesceChanges(*tiles);
     renderTiles = std::move(tiles);
@@ -596,7 +601,7 @@ RenderTiles RenderTileSource::getRenderTiles() const {
     if (!filteredRenderTiles) {
         auto result = std::make_shared<std::vector<std::reference_wrapper<const RenderTile>>>();
         for (const auto& renderTile : *renderTiles) {
-            if (renderTile.holdForFade()) {
+            if (renderTile.holdForFade() || renderTile.retiring) {
                 continue;
             }
             result->emplace_back(renderTile);
@@ -604,6 +609,20 @@ RenderTiles RenderTileSource::getRenderTiles() const {
         filteredRenderTiles = std::move(result);
     }
     return filteredRenderTiles;
+}
+
+RenderTiles RenderTileSource::getRenderTilesFadingGeometry() const {
+    if (!fadingGeometryRenderTiles) {
+        auto result = std::make_shared<std::vector<std::reference_wrapper<const RenderTile>>>();
+        for (const auto& renderTile : *renderTiles) {
+            if (renderTile.holdForFade() && !renderTile.retiring) {
+                continue;
+            }
+            result->emplace_back(renderTile);
+        }
+        fadingGeometryRenderTiles = std::move(result);
+    }
+    return fadingGeometryRenderTiles;
 }
 
 RenderTiles RenderTileSource::getRenderTilesSortedByYPosition() const {
@@ -621,6 +640,8 @@ RenderTiles RenderTileSource::getRenderTilesSortedByYPosition() const {
         auto result = std::make_shared<std::vector<std::reference_wrapper<const RenderTile>>>();
         result->reserve(renderTiles->size());
         for (const auto& renderTile : *renderTiles) {
+            // the labels keep their own fade (`holdForFade`); a tile only leaving the cover draws none
+            if (renderTile.retiring && !renderTile.holdForFade()) continue;
             result->emplace_back(renderTile);
         }
         std::sort(result->begin(), result->end(), comp);

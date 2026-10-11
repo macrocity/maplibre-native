@@ -44,7 +44,7 @@ layout (std140) uniform LineGradientDrawableUBO {
     lowp float u_gapwidth_t;
     lowp float u_offset_t;
     lowp float u_width_t;
-    lowp float drawable_pad1;
+    lowp float u_tile_fade;
     lowp float drawable_pad2;
 };
 
@@ -87,7 +87,10 @@ layout (location = 6) in mediump vec2 a_width;
 out float v_tile_x;
 #endif
 
+out lowp float v_tile_fade;
+
 void main() {
+    v_tile_fade = u_tile_fade;
     #ifndef HAS_UNIFORM_u_blur
 blur = unpack_mix_vec2(a_blur, u_blur_t);
 #else
@@ -203,6 +206,8 @@ in lowp float opacity;
 in float v_tile_x;
 #endif
 
+in lowp float v_tile_fade;
+
 void main() {
 #ifdef PROJECTION_GLOBE
     if (clippedAtAntimeridian(v_tile_x)) {
@@ -230,6 +235,8 @@ lowp float opacity = u_opacity;
     vec4 color = texture(u_image, vec2(v_lineprogress, 0.5));
 
     fragColor = color * (alpha * opacity);
+
+    fragColor *= v_tile_fade;
 
 #ifdef OVERDRAW_INSPECTOR
     fragColor = vec4(1.0);

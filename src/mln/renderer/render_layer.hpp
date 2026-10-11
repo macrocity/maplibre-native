@@ -157,7 +157,16 @@ public:
 
     virtual void prepare(const LayerPrepareParameters&);
 
+    /// Whether the layer takes the tiles leaving the cover too and crossfades its tiles' geometry
+    /// (TilePyramid::tileFade; fill and line).
+    virtual bool fadesTileGeometry() const { return false; }
+
     const LayerPlacementData& getPlacementData() const { return placementData; }
+
+    /// The layer's tiles less those leaving the cover, for its tile clipping masks; and every drawable's crossfade and
+    /// clipping set from its tile's (a tile leaving the cover is drawn whole, unclipped, under its replacement).
+    RenderTiles clippedRenderTiles() const;
+    void applyTileFades(TileLayerGroup&) const;
 
     /// Latest evaluated properties.
     Immutable<style::LayerProperties> evaluatedProperties;

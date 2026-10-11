@@ -77,6 +77,9 @@ public:
     // position, so tiles with overlapping symbols are drawn on top of each other,
     // with lower symbols being drawn on top of higher symbols; returns nullptr otherwise.
     virtual RenderTiles getRenderTilesSortedByYPosition() const { return nullptr; }
+    /// The tiles of `getRenderTiles` and the ones leaving the cover, for layers that crossfade their geometry
+    /// (RenderLayer::fadesTileGeometry).
+    virtual RenderTiles getRenderTilesFadingGeometry() const { return getRenderTiles(); }
     // If supported, returns pointer to image data; returns nullptr otherwise.
     virtual const ImageSourceRenderData* getImageRenderData() const { return nullptr; }
     virtual const Tile* getRenderedTile(const UnwrappedTileID&) const { return nullptr; }

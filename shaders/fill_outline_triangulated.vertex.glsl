@@ -24,7 +24,7 @@ layout (std140) uniform GlobalPaintParamsUBO {
 layout (std140) uniform FillOutlineTriangulatedDrawableUBO {
     highp mat4 u_matrix;
     mediump float u_ratio;
-    lowp float drawable_pad1;
+    lowp float u_tile_fade;
     lowp float drawable_pad2;
     lowp float drawable_pad3;
 };
@@ -43,7 +43,10 @@ out float v_width;
 out float v_gamma_scale;
 out highp float v_linesofar;
 
+out lowp float v_tile_fade;
+
 void main() {
+    v_tile_fade = u_tile_fade;
     // the distance over which the line edge fades out.
     // Retina devices need a smaller distance to avoid aliasing.
     float ANTIALIASING = 1.0 / DEVICE_PIXEL_RATIO / 2.0;

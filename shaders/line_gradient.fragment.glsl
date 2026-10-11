@@ -24,6 +24,8 @@ in highp float v_lineprogress;
 in float v_tile_x;
 #endif
 
+in lowp float v_tile_fade;
+
 void main() {
 #ifdef PROJECTION_GLOBE
     if (clippedAtAntimeridian(v_tile_x)) {
@@ -47,6 +49,8 @@ void main() {
     vec4 color = texture(u_image, vec2(v_lineprogress, 0.5));
 
     fragColor = color * (alpha * opacity);
+
+    fragColor *= v_tile_fade;
 
 #ifdef OVERDRAW_INSPECTOR
     fragColor = vec4(1.0);
