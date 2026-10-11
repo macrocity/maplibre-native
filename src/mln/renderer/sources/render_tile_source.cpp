@@ -141,7 +141,7 @@ public:
                 .gapwidth_t = 0.f,
                 .offset_t = 0.f,
                 .width_t = 0.f,
-                .pad1 = 0
+                .tile_fade = 1.0f
             };
 
 #if MLN_UBO_CONSOLIDATION
