@@ -81,8 +81,10 @@ void RenderPass::resetState() {
         fragmentSamplerStates[i].reset();
     }
 
-    currentCullMode = MTL::CullModeNone;
-    currentWinding = MTL::WindingClockwise;
+    // A custom layer can leave the encoder in any rasterization state.
+    // Unknown values force the next drawable to restore its own state.
+    currentCullMode.reset();
+    currentWinding.reset();
     currentScissorRect = {.x = 0, .y = 0, .width = 0, .height = 0};
 }
 
