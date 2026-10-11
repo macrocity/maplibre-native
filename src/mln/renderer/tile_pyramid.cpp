@@ -239,6 +239,17 @@ void TilePyramid::update(const std::vector<Immutable<style::LayerProperties>>& l
     const TimePoint now = Clock::now();
     continuous = parameters.mode == MapMode::Continuous;
     retiring.clear();
+    // Two tiles of one place at two zooms (one is the other or holds it): a change of the cover's level there.
+    const auto overlaps = [](const UnwrappedTileID& a, const UnwrappedTileID& b) {
+        if (a.wrap != b.wrap) return false;
+        const auto& low = a.canonical.z <= b.canonical.z ? a.canonical : b.canonical;
+        const auto& high = a.canonical.z <= b.canonical.z ? b.canonical : a.canonical;
+        const int dz = high.z - low.z;
+        return (high.x >> dz) == low.x && (high.y >> dz) == low.y;
+    };
+    std::vector<UnwrappedTileID> cover;
+    cover.reserve(renderedTiles.size());
+    for (const auto& entry : renderedTiles) cover.push_back(entry.first);
     for (auto previouslyRenderedTile : previouslyRenderedTiles) {
         Tile& tile = previouslyRenderedTile.second;
         tile.markRenderedPreviously();
@@ -248,7 +259,11 @@ void TilePyramid::update(const std::vector<Immutable<style::LayerProperties>>& l
             retainTileFn(tile, TileNecessity::Optional);
             addRenderTile(previouslyRenderedTile.first, tile);
         }
-        if (continuous && tile.isRenderable()) {
+        // only a tile the cover now draws at another zoom fades out under it; one that left the view goes at once
+        const bool replaced = std::any_of(cover.begin(), cover.end(), [&](const UnwrappedTileID& id) {
+            return overlaps(id, previouslyRenderedTile.first);
+        });
+        if (continuous && replaced && tile.isRenderable()) {
             auto [entry, fresh] = retiredAt.emplace(previouslyRenderedTile.first, now);
             if (fresh) {
                 // a tile still coming in leaves from where it had come to, not from whole
@@ -294,6 +309,11 @@ void TilePyramid::update(const std::vector<Immutable<style::LayerProperties>>& l
         if (fresh) {
             if (const auto back = returning.find(entry.first); back != returning.end()) {
                 shownEntry->second = now - std::chrono::duration_cast<Duration>(geometryFadeDuration / 2 * back->second);
+            } else if (std::none_of(retiring.begin(), retiring.end(), [&](const UnwrappedTileID& id) {
+                           return overlaps(id, entry.first);
+                       })) {
+                // nothing of another zoom under it (a tile coming into view as the map pans): whole at once
+                shownEntry->second = now - geometryFadeDuration;
             }
         }
         const auto shown = shownEntry->second;
