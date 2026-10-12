@@ -34,7 +34,7 @@ layout (std140) uniform GlobalPaintParamsUBO {
 layout (std140) uniform FillOutlineTriangulatedDrawableUBO {
     highp mat4 u_matrix;
     mediump float u_ratio;
-    lowp float u_tile_fade;
+    highp float u_tile_fade;
     lowp float drawable_pad2;
     lowp float drawable_pad3;
 };
@@ -53,10 +53,9 @@ out float v_width;
 out float v_gamma_scale;
 out highp float v_linesofar;
 
-out lowp float v_tile_fade;
+out highp vec3 v_lod;
 
 void main() {
-    v_tile_fade = u_tile_fade;
     // the distance over which the line edge fades out.
     // Retina devices need a smaller distance to avoid aliasing.
     float ANTIALIASING = 1.0 / DEVICE_PIXEL_RATIO / 2.0;
@@ -93,6 +92,7 @@ void main() {
     v_gamma_scale = extrude_length_without_perspective / extrude_length_with_perspective;
 
     v_width = outset;
+    v_lod = vec3(pos + dist / u_ratio, u_tile_fade);
 }
 )";
     static constexpr const char* fragment = R"(layout (std140) uniform FillEvaluatedPropsUBO {
@@ -108,7 +108,7 @@ in float v_width;
 in vec2 v_normal;
 in float v_gamma_scale;
 
-in lowp float v_tile_fade;
+in highp vec3 v_lod;
 
 void main() {
     // Calculate the distance of the pixel from the line in pixels.
@@ -122,7 +122,7 @@ void main() {
 
     fragColor = u_outline_color * (alpha * u_opacity);
 
-    fragColor *= v_tile_fade;
+    fragColor *= lod_blend(v_lod.z, gl_FragCoord.xy, v_lod.xy);
 
 #ifdef OVERDRAW_INSPECTOR
     fragColor = vec4(1.0);

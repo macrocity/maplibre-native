@@ -35,7 +35,7 @@ in float v_gamma_scale;
 in float v_tile_x;
 #endif
 
-in lowp float v_tile_fade;
+in highp vec3 v_lod;
 
 void main() {
 #ifdef PROJECTION_GLOBE
@@ -65,7 +65,7 @@ void main() {
 
     fragColor = color * (alpha * opacity);
 
-    fragColor *= v_tile_fade;
+    fragColor *= lod_blend(v_lod.z, gl_FragCoord.xy, v_lod.xy);
 
 #ifdef OVERDRAW_INSPECTOR
     fragColor = vec4(1.0);

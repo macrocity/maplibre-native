@@ -13,7 +13,7 @@ struct ShaderSource<BuiltIn::FillShader, gfx::Backend::Type::OpenGL> {
     // Interpolations
     highp float u_color_t;
     highp float u_opacity_t;
-    lowp float u_tile_fade;
+    highp float u_tile_fade;
     lowp float drawable_pad2;
 };
 
@@ -37,10 +37,9 @@ layout (location = 2) in lowp vec2 a_opacity;
 out lowp float opacity;
 #endif
 
-out lowp float v_tile_fade;
+out highp vec3 v_lod;
 
 void main() {
-    v_tile_fade = u_tile_fade;
     #ifndef HAS_UNIFORM_u_color
 color = unpack_mix_color(a_color, u_color_t);
 #else
@@ -53,6 +52,7 @@ lowp float opacity = u_opacity;
 #endif
 
     gl_Position = projectTile(a_pos, a_pos);
+    v_lod = vec3(a_pos, u_tile_fade);
 }
 )";
     static constexpr const char* fragment = R"(layout (std140) uniform FillEvaluatedPropsUBO {
@@ -71,7 +71,7 @@ in highp vec4 color;
 in lowp float opacity;
 #endif
 
-in lowp float v_tile_fade;
+in highp vec3 v_lod;
 
 void main() {
     #ifdef HAS_UNIFORM_u_color
@@ -83,7 +83,7 @@ lowp float opacity = u_opacity;
 
     fragColor = color * opacity;
 
-    fragColor *= v_tile_fade;
+    fragColor *= lod_blend(v_lod.z, gl_FragCoord.xy, v_lod.xy);
 
 #ifdef OVERDRAW_INSPECTOR
     fragColor = vec4(1.0);

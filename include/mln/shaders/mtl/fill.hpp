@@ -173,7 +173,7 @@ struct FragmentStage {
 #if !defined(HAS_UNIFORM_u_opacity)
     half opacity;
 #endif
-    half tile_fade;
+    float3 lod;
 };
 
 FragmentStage vertex vertexMain(thread const VertexStage vertx [[stage_in]],
@@ -191,7 +191,7 @@ FragmentStage vertex vertexMain(thread const VertexStage vertx [[stage_in]],
 #if !defined(HAS_UNIFORM_u_opacity)
         .opacity  = half(unpack_mix_float(vertx.opacity, drawable.opacity_t)),
 #endif
-        .tile_fade = half(drawable.tile_fade),
+        .lod = float3(float2(vertx.position), drawable.tile_fade),
     };
 }
 
@@ -213,7 +213,7 @@ half4 fragment fragmentMain(FragmentStage in [[stage_in]],
     const half opacity = in.opacity;
 #endif
 
-    return in.tile_fade * half4(color * opacity);
+    return half(lodBlend(in.lod.z, in.position.xy, in.lod.xy)) * half4(color * opacity);
 }
 )";
 };
@@ -246,7 +246,7 @@ struct FragmentStage {
 #if !defined(HAS_UNIFORM_u_opacity)
     half opacity;
 #endif
-    half tile_fade;
+    float3 lod;
 };
 
 FragmentStage vertex vertexMain(thread const VertexStage vertx [[stage_in]],
@@ -267,7 +267,7 @@ FragmentStage vertex vertexMain(thread const VertexStage vertx [[stage_in]],
 #if !defined(HAS_UNIFORM_u_opacity)
         .opacity        = half(unpack_mix_float(vertx.opacity, drawable.opacity_t)),
 #endif
-        .tile_fade = half(drawable.tile_fade),
+        .lod = float3(float2(vertx.position), drawable.tile_fade),
     };
 }
 
@@ -295,7 +295,7 @@ half4 fragment fragmentMain(FragmentStage in [[stage_in]],
     const half opacity = in.opacity;
 #endif
 
-    return in.tile_fade * half4(color * opacity);
+    return half(lodBlend(in.lod.z, in.position.xy, in.lod.xy)) * half4(color * opacity);
 }
 )";
 };
@@ -341,6 +341,7 @@ struct FragmentStage {
 #if !defined(HAS_UNIFORM_u_opacity)
     half opacity;
 #endif
+    float2 lod_pos;
 };
 
 FragmentStage vertex vertexMain(thread const VertexStage vertx [[stage_in]],
@@ -393,6 +394,7 @@ FragmentStage vertex vertexMain(thread const VertexStage vertx [[stage_in]],
 #if !defined(HAS_UNIFORM_u_opacity)
         .opacity        = half(unpack_mix_float(vertx.opacity, drawable.opacity_t)),
 #endif
+        .lod_pos        = postion,
     };
 }
 
@@ -439,7 +441,7 @@ half4 fragment fragmentMain(FragmentStage in [[stage_in]],
     const float2 pos2 = mix(pattern_tl_b / tileProps.texsize, pattern_br_b / tileProps.texsize, imagecoord_b);
     const float4 color2 = image0.sample(image0_sampler, pos2);
 
-    return half(tileProps.tile_fade) * half4(mix(color1, color2, props.fade) * opacity);
+    return half(lodBlend(tileProps.tile_fade, in.position.xy, in.lod_pos)) * half4(mix(color1, color2, props.fade) * opacity);
 }
 )";
 };
@@ -486,6 +488,7 @@ struct FragmentStage {
 #if !defined(HAS_UNIFORM_u_opacity)
     half opacity;
 #endif
+    float2 lod_pos;
 };
 
 FragmentStage vertex vertexMain(thread const VertexStage vertx [[stage_in]],
@@ -545,6 +548,7 @@ FragmentStage vertex vertexMain(thread const VertexStage vertx [[stage_in]],
 #if !defined(HAS_UNIFORM_u_opacity)
         .opacity        = half(opacity),
 #endif
+        .lod_pos        = pos2,
     };
 }
 
@@ -595,7 +599,7 @@ half4 fragment fragmentMain(FragmentStage in [[stage_in]],
     //float dist = length(in.v_pos - in.position.xy);
     //float alpha = 1.0 - smoothstep(0.0, 1.0, dist);
 
-    return half(tileProps.tile_fade) * half4(mix(color1, color2, props.fade) * opacity);
+    return half(lodBlend(tileProps.tile_fade, in.position.xy, in.lod_pos)) * half4(mix(color1, color2, props.fade) * opacity);
 }
 )";
 };
@@ -623,7 +627,7 @@ struct FragmentStage {
     float width2;
     float2 normal;
     half gamma_scale;
-    half tile_fade;
+    float3 lod;
 };
 
 FragmentStage vertex vertexMain(thread const VertexStage vertx [[stage_in]],
@@ -666,7 +670,7 @@ FragmentStage vertex vertexMain(thread const VertexStage vertx [[stage_in]],
         .width2      = outset,
         .normal      = v_normal,
         .gamma_scale = half(extrude_length_without_perspective / extrude_length_with_perspective),
-        .tile_fade = half(drawable.tile_fade),
+        .lod = float3(pos + dist / drawable.ratio, drawable.tile_fade),
     };
 }
 
@@ -681,7 +685,7 @@ half4 fragment fragmentMain(FragmentStage in [[stage_in]],
     const float blur2 = (1.0 / DEVICE_PIXEL_RATIO) * in.gamma_scale;
     const float alpha = clamp(min(dist + blur2, in.width2 - dist) / blur2, 0.0, 1.0);
 
-    return in.tile_fade * half4(props.outline_color * (alpha * props.opacity));
+    return half(lodBlend(in.lod.z, in.position.xy, in.lod.xy)) * half4(props.outline_color * (alpha * props.opacity));
 }
 )";
 };

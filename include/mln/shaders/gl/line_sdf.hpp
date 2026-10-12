@@ -50,7 +50,7 @@ layout (std140) uniform LineSDFDrawableUBO {
     lowp float u_offset_t;
     lowp float u_width_t;
     lowp float u_floorwidth_t;
-    lowp float u_tile_fade;
+    highp float u_tile_fade;
     lowp float drawable_pad2;
 };
 
@@ -103,10 +103,9 @@ out lowp float floorwidth;
 out float v_tile_x;
 #endif
 
-out lowp float v_tile_fade;
+out highp vec3 v_lod;
 
 void main() {
-    v_tile_fade = u_tile_fade;
     #ifndef HAS_UNIFORM_u_color
 color = unpack_mix_color(a_color, u_color_t);
 #else
@@ -189,6 +188,7 @@ lowp float floorwidth = u_floorwidth;
     v_tile_x = antimeridianClipX(extrudedPos);
     vec4 projected_extrude = gl_Position - projected_no_extrude;
 #else
+    vec2 extrudedPos = pos + (offset2 + dist) / u_ratio;
     vec4 projected_extrude = u_matrix * vec4(dist / u_ratio, 0.0, 0.0);
     gl_Position = u_matrix * vec4(pos + offset2 / u_ratio, 0.0, 1.0) + projected_extrude;
 #endif
@@ -202,6 +202,7 @@ lowp float floorwidth = u_floorwidth;
     v_tex_b = vec2(a_linesofar * u_patternscale_b.x / floorwidth, normal.y * u_patternscale_b.y + u_tex_y_b);
 
     v_width2 = vec2(outset, inset);
+    v_lod = vec3(extrudedPos, u_tile_fade);
 }
 )";
     static constexpr const char* fragment = R"(layout (std140) uniform LineSDFTilePropsUBO {
@@ -251,7 +252,7 @@ in lowp float floorwidth;
 in float v_tile_x;
 #endif
 
-in lowp float v_tile_fade;
+in highp vec3 v_lod;
 
 void main() {
 #ifdef PROJECTION_GLOBE
@@ -291,7 +292,7 @@ lowp float floorwidth = u_floorwidth;
 
     fragColor = color * (alpha * opacity);
 
-    fragColor *= v_tile_fade;
+    fragColor *= lod_blend(v_lod.z, gl_FragCoord.xy, v_lod.xy);
 
 #ifdef OVERDRAW_INSPECTOR
     fragColor = vec4(1.0);

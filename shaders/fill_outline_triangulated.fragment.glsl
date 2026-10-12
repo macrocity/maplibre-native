@@ -11,7 +11,7 @@ in float v_width;
 in vec2 v_normal;
 in float v_gamma_scale;
 
-in lowp float v_tile_fade;
+in highp vec3 v_lod;
 
 void main() {
     // Calculate the distance of the pixel from the line in pixels.
@@ -25,7 +25,7 @@ void main() {
 
     fragColor = u_outline_color * (alpha * u_opacity);
 
-    fragColor *= v_tile_fade;
+    fragColor *= lod_blend(v_lod.z, gl_FragCoord.xy, v_lod.xy);
 
 #ifdef OVERDRAW_INSPECTOR
     fragColor = vec4(1.0);

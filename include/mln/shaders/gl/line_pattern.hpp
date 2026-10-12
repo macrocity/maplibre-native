@@ -53,7 +53,7 @@ layout (std140) uniform LinePatternTilePropsUBO {
     mediump vec4 u_scale;
     highp vec2 u_texsize;
     highp float u_fade;
-    lowp float u_tile_fade;
+    highp float u_tile_fade;
 };
 
 layout (std140) uniform LineEvaluatedPropsUBO {
@@ -102,6 +102,8 @@ out lowp vec4 pattern_to;
 #ifdef PROJECTION_GLOBE
 out float v_tile_x;
 #endif
+
+out highp vec2 v_lod_pos;
 
 void main() {
     #ifndef HAS_UNIFORM_u_blur
@@ -186,6 +188,7 @@ mediump vec4 pattern_to = u_pattern_to;
     v_tile_x = antimeridianClipX(extrudedPos);
     vec4 projected_extrude = gl_Position - projected_no_extrude;
 #else
+    vec2 extrudedPos = pos + (offset2 + dist) / u_ratio;
     vec4 projected_extrude = u_matrix * vec4(dist / u_ratio, 0.0, 0.0);
     gl_Position = u_matrix * vec4(pos + offset2 / u_ratio, 0.0, 1.0) + projected_extrude;
 #endif
@@ -197,6 +200,7 @@ mediump vec4 pattern_to = u_pattern_to;
 
     v_linesofar = a_linesofar;
     v_width2 = vec2(outset, inset);
+    v_lod_pos = extrudedPos;
 }
 )";
     static constexpr const char* fragment = R"(layout (std140) uniform LinePatternTilePropsUBO {
@@ -205,7 +209,7 @@ mediump vec4 pattern_to = u_pattern_to;
     mediump vec4 u_scale;
     highp vec2 u_texsize;
     highp float u_fade;
-    lowp float u_tile_fade;
+    highp float u_tile_fade;
 };
 
 layout (std140) uniform LineEvaluatedPropsUBO {
@@ -243,6 +247,8 @@ in lowp float opacity;
 #ifdef PROJECTION_GLOBE
 in float v_tile_x;
 #endif
+
+in highp vec2 v_lod_pos;
 
 void main() {
 #ifdef PROJECTION_GLOBE
@@ -306,7 +312,7 @@ lowp float opacity = u_opacity;
 
     fragColor = color * alpha * opacity;
 
-    fragColor *= u_tile_fade;
+    fragColor *= lod_blend(u_tile_fade, gl_FragCoord.xy, v_lod_pos);
 
 #ifdef OVERDRAW_INSPECTOR
     fragColor = vec4(1.0);

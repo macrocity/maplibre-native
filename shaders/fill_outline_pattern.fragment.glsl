@@ -2,7 +2,7 @@ layout (std140) uniform FillOutlinePatternTilePropsUBO {
     highp vec4 u_pattern_from;
     highp vec4 u_pattern_to;
     highp vec2 u_texsize;
-    lowp float u_tile_fade;
+    highp float u_tile_fade;
     lowp float tileprops_pad2;
 };
 
@@ -24,6 +24,8 @@ in vec2 v_pos;
 #pragma mapbox: define lowp float opacity
 #pragma mapbox: define lowp vec4 pattern_from
 #pragma mapbox: define lowp vec4 pattern_to
+
+in highp vec2 v_lod_pos;
 
 void main() {
     #pragma mapbox: initialize lowp float opacity
@@ -51,7 +53,7 @@ void main() {
 
     fragColor = mix(color1, color2, u_fade) * alpha * opacity;
 
-    fragColor *= u_tile_fade;
+    fragColor *= lod_blend(u_tile_fade, gl_FragCoord.xy, v_lod_pos);
 
 #ifdef OVERDRAW_INSPECTOR
     fragColor = vec4(1.0);

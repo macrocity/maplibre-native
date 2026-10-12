@@ -35,7 +35,7 @@ layout (std140) uniform FillOutlinePatternTilePropsUBO {
     highp vec4 u_pattern_from;
     highp vec4 u_pattern_to;
     highp vec2 u_texsize;
-    lowp float u_tile_fade;
+    highp float u_tile_fade;
     lowp float tileprops_pad2;
 };
 
@@ -66,6 +66,8 @@ out lowp vec4 pattern_from;
 layout (location = 3) in lowp vec4 a_pattern_to;
 out lowp vec4 pattern_to;
 #endif
+
+out highp vec2 v_lod_pos;
 
 void main() {
     #ifndef HAS_UNIFORM_u_opacity
@@ -103,13 +105,14 @@ mediump vec4 pattern_to = u_pattern_to;
     v_pos_b = get_pattern_pos(u_pixel_coord_upper, u_pixel_coord_lower, toScale * display_size_b, tileRatio, a_pos);
 
     v_pos = (gl_Position.xy / gl_Position.w + 1.0) / 2.0 * u_world_size;
+    v_lod_pos = a_pos;
 }
 )";
     static constexpr const char* fragment = R"(layout (std140) uniform FillOutlinePatternTilePropsUBO {
     highp vec4 u_pattern_from;
     highp vec4 u_pattern_to;
     highp vec2 u_texsize;
-    lowp float u_tile_fade;
+    highp float u_tile_fade;
     lowp float tileprops_pad2;
 };
 
@@ -137,6 +140,8 @@ in lowp vec4 pattern_from;
 #ifndef HAS_UNIFORM_u_pattern_to
 in lowp vec4 pattern_to;
 #endif
+
+in highp vec2 v_lod_pos;
 
 void main() {
     #ifdef HAS_UNIFORM_u_opacity
@@ -170,7 +175,7 @@ mediump vec4 pattern_to = u_pattern_to;
 
     fragColor = mix(color1, color2, u_fade) * alpha * opacity;
 
-    fragColor *= u_tile_fade;
+    fragColor *= lod_blend(u_tile_fade, gl_FragCoord.xy, v_lod_pos);
 
 #ifdef OVERDRAW_INSPECTOR
     fragColor = vec4(1.0);

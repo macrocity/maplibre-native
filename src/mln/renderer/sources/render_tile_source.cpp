@@ -577,13 +577,14 @@ void RenderTileSource::prepare(const SourcePrepareParameters& parameters) {
     renderTilesSortedByY = nullptr;
     auto tiles = makeMutable<std::vector<RenderTile>>();
     tiles->reserve(tilePyramid.getRenderedTiles().size());
-    const TimePoint now = Clock::now();
     for (auto& entry : tilePyramid.getRenderedTiles()) {
         tiles->emplace_back(entry.first, entry.second);
         tiles->back().prepare(parameters);
-        const auto fade = tilePyramid.tileFade(entry.first, now);
-        tiles->back().fadeOpacity = fade.opacity;
-        tiles->back().retiring = fade.retiring;
+        const auto blend = tilePyramid.lodBlend(entry.first);
+        tiles->back().lodFade = blend.fade;
+        tiles->back().lodParent = blend.parent;
+        tiles->back().lodExtra = blend.extra;
+        tiles->back().lodHidden = blend.hidden;
     }
     featureState.coalesceChanges(*tiles);
     renderTiles = std::move(tiles);
@@ -601,7 +602,7 @@ RenderTiles RenderTileSource::getRenderTiles() const {
     if (!filteredRenderTiles) {
         auto result = std::make_shared<std::vector<std::reference_wrapper<const RenderTile>>>();
         for (const auto& renderTile : *renderTiles) {
-            if (renderTile.holdForFade() || renderTile.retiring) {
+            if (renderTile.holdForFade() || renderTile.lodExtra) {
                 continue;
             }
             result->emplace_back(renderTile);
@@ -615,7 +616,7 @@ RenderTiles RenderTileSource::getRenderTilesFadingGeometry() const {
     if (!fadingGeometryRenderTiles) {
         auto result = std::make_shared<std::vector<std::reference_wrapper<const RenderTile>>>();
         for (const auto& renderTile : *renderTiles) {
-            if (renderTile.holdForFade() && !renderTile.retiring) {
+            if ((renderTile.holdForFade() && !renderTile.lodParent) || renderTile.lodHidden) {
                 continue;
             }
             result->emplace_back(renderTile);
@@ -640,8 +641,8 @@ RenderTiles RenderTileSource::getRenderTilesSortedByYPosition() const {
         auto result = std::make_shared<std::vector<std::reference_wrapper<const RenderTile>>>();
         result->reserve(renderTiles->size());
         for (const auto& renderTile : *renderTiles) {
-            // the labels keep their own fade (`holdForFade`); a tile only leaving the cover draws none
-            if (renderTile.retiring && !renderTile.holdForFade()) continue;
+            // a parent drawn only to blend its children's fill and line layers draws no labels
+            if (renderTile.lodExtra) continue;
             result->emplace_back(renderTile);
         }
         std::sort(result->begin(), result->end(), comp);

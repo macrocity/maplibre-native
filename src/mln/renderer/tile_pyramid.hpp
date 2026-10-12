@@ -17,6 +17,8 @@
 #include <memory>
 #include <unordered_map>
 #include <vector>
+#include <array>
+#include <functional>
 #include <map>
 #include <set>
 
@@ -73,21 +75,35 @@ public:
     void clearAll();
 
     void updateFadingTiles();
-    bool hasFadingTiles() const { return fadingTiles || geometryFading; }
+    bool hasFadingTiles() const { return fadingTiles || lodArriving; }
 
-    /// The geometry crossfade as the tile cover changes (a whole zoom crossed, a tile loaded over the placeholder that
-    /// stood in for it): vector tiles of one source are generalised differently at each zoom, and swapping one set for
-    /// the next in a frame made the map jump. A tile newly drawn comes in over the first half of `geometryFadeDuration`;
-    /// a tile no longer in the cover stays drawn under it ("retiring") and goes over the second half. Where both draw
-    /// the same thing the new one already covers the old one, so nothing dims; what only the old one drew fades out.
-    /// Only layers that take the retiring tiles (`RenderLayer::fadesTileGeometry`, fill and line) draw them.
-    static constexpr Duration geometryFadeDuration = std::chrono::milliseconds(300);
-    struct TileFade {
-        float opacity = 1.0f;
-        bool retiring = false;
+    /// The blend between two levels of detail. Vector tiles of two zooms are generalised differently (a park's
+    /// outline, which small parks there are, a road's shape), and the cover swapping one level for the next in a frame
+    /// made the map jump at every whole zoom. Each tile of the cover replaced its parent where the zoom (on the globe,
+    /// its distance from the camera too) passed a whole zoom; for `lodBlendZooms` past that, fill and line layers draw
+    /// the parent as well. Every pixel takes either level, never both, so a half transparent layer is never drawn
+    /// twice: a dither, its share of the children growing from none to all with the zoom, so the change follows the
+    /// zoom and stops when it stops. A level not loaded yet leaves the other one whole and comes in over
+    /// `lodArrivalDuration` when it is.
+    static constexpr double lodBlendZooms = 0.5;
+    static constexpr Duration lodArrivalDuration = std::chrono::milliseconds(300);
+    /// A child's share of the pixels is one of `lodShareSteps` + 1 values, so that a parent's `tile_fade` holds its
+    /// four children's (one per quadrant of its extent, `lodShareBits` each) exactly in a float.
+    static constexpr int lodShareBits = 6;
+    static constexpr int lodShareSteps = (1 << lodShareBits) - 1;
+    struct LodBlend {
+        /// The tile's `tile_fade` in fill and line shaders: the share of the pixels it draws (a child); or, for a
+        /// parent under its children, -1 less its children's shares packed per quadrant, the pixels it draws being
+        /// the others.
+        float fade = 1.0f;
+        /// Drawn under its children, outside the tile clipping masks; the shaders keep it to its own extent.
+        bool parent = false;
+        /// Not in the cover: only fill and line layers draw it.
+        bool extra = false;
+        /// In the cover, but drawn by the parent that stands for it in fill and line layers.
+        bool hidden = false;
     };
-    /// The tile's crossfade at `now` (Continuous mode only; a whole tile otherwise).
-    TileFade tileFade(const UnwrappedTileID&, TimePoint now) const;
+    LodBlend lodBlend(const UnwrappedTileID&) const;
 
 private:
     void addRenderTile(const UnwrappedTileID& tileID, Tile& tile);
@@ -104,12 +120,23 @@ private:
     bool fadingTiles = false;
     bool cacheEnabled = true;
 
-    // the geometry crossfade (`tileFade`): when each drawn tile came in, when each retiring one left the cover
-    bool continuous = false;
-    bool geometryFading = false;
-    std::map<UnwrappedTileID, TimePoint> shownAt;
-    std::map<UnwrappedTileID, TimePoint> retiredAt;
-    std::set<UnwrappedTileID> retiring;
+    // the level blend (`lodBlend`): each child's, and this frame's tiles
+    struct LodState {
+        enum class Kind { Both, ParentOnly } kind;
+        double shown = 1;
+        double from = 1;
+        TimePoint since;
+    };
+    std::map<UnwrappedTileID, LodState> lodStates;
+    std::map<UnwrappedTileID, LodBlend> lodBlends;
+    bool lodArriving = false;
+    void updateLodBlends(const TileParameters&,
+                         const std::vector<OverscaledTileID>& idealTiles,
+                         const std::vector<double>& splitZooms,
+                         Range<uint8_t> zoomRange,
+                         const std::function<Tile*(const OverscaledTileID&)>& getTile,
+                         const std::function<Tile*(const OverscaledTileID&)>& createTile,
+                         const std::function<void(Tile&, TileNecessity)>& retainTile);
 };
 
 } // namespace mln

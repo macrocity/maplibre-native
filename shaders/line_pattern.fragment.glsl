@@ -4,7 +4,7 @@ layout (std140) uniform LinePatternTilePropsUBO {
     mediump vec4 u_scale;
     highp vec2 u_texsize;
     highp float u_fade;
-    lowp float u_tile_fade;
+    highp float u_tile_fade;
 };
 
 layout (std140) uniform LineEvaluatedPropsUBO {
@@ -34,6 +34,8 @@ in float v_gamma_scale;
 #ifdef PROJECTION_GLOBE
 in float v_tile_x;
 #endif
+
+in highp vec2 v_lod_pos;
 
 void main() {
 #ifdef PROJECTION_GLOBE
@@ -89,7 +91,7 @@ void main() {
 
     fragColor = color * alpha * opacity;
 
-    fragColor *= u_tile_fade;
+    fragColor *= lod_blend(u_tile_fade, gl_FragCoord.xy, v_lod_pos);
 
 #ifdef OVERDRAW_INSPECTOR
     fragColor = vec4(1.0);

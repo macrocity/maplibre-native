@@ -72,6 +72,13 @@ void RenderLayer::prepare(const LayerPrepareParameters& params) {
 
     sourceForState = params.source;
     renderTiles = fadesTileGeometry() ? params.source->getRenderTilesFadingGeometry() : params.source->getRenderTiles();
+    if (lodParentsOnly && renderTiles) {
+        auto parents = std::make_shared<std::vector<std::reference_wrapper<const RenderTile>>>();
+        for (const RenderTile& tile : *renderTiles) {
+            if (tile.lodParent) parents->emplace_back(tile);
+        }
+        renderTiles = std::move(parents);
+    }
     renderTilesOwner = params.source->getRawRenderTiles();
 
     addRenderPassesFromTiles();
@@ -447,12 +454,12 @@ namespace mln {
 RenderTiles RenderLayer::clippedRenderTiles() const {
     if (!renderTiles) return renderTiles;
     bool any = false;
-    for (const RenderTile& tile : *renderTiles) any = any || tile.retiring;
+    for (const RenderTile& tile : *renderTiles) any = any || tile.lodParent;
     if (!any) return renderTiles;
     auto result = std::make_shared<std::vector<std::reference_wrapper<const RenderTile>>>();
     result->reserve(renderTiles->size());
     for (const RenderTile& tile : *renderTiles) {
-        if (!tile.retiring) result->emplace_back(tile);
+        if (!tile.lodParent) result->emplace_back(tile);
     }
     return result;
 }
@@ -466,8 +473,8 @@ void RenderLayer::applyTileFades(TileLayerGroup& group) const {
         if (!tileID) return;
         const auto found = byTile.find(*tileID);
         if (found == byTile.end()) return;
-        drawable.setTileFade(found->second->fadeOpacity);
-        const bool clipped = !found->second->retiring;
+        drawable.setTileFade(found->second->lodFade);
+        const bool clipped = !found->second->lodParent;
         if (drawable.getEnableStencil() != clipped) drawable.setEnableStencil(clipped);
     });
 }

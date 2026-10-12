@@ -12,7 +12,7 @@ in vec2 v_pos;
 #pragma mapbox: define highp vec4 outline_color
 #pragma mapbox: define lowp float opacity
 
-in lowp float v_tile_fade;
+in highp vec3 v_lod;
 
 void main() {
     #pragma mapbox: initialize highp vec4 outline_color
@@ -22,7 +22,7 @@ void main() {
     float alpha = 1.0 - smoothstep(0.0, 1.0, dist);
     fragColor = outline_color * (alpha * opacity);
 
-    fragColor *= v_tile_fade;
+    fragColor *= lod_blend(v_lod.z, gl_FragCoord.xy, v_lod.xy);
 
 #ifdef OVERDRAW_INSPECTOR
     fragColor = vec4(1.0);

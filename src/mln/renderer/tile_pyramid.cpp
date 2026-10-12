@@ -112,6 +112,7 @@ void TilePyramid::update(const std::vector<Immutable<style::LayerProperties>>& l
     const bool isVolatile = sourceImpl.isVolatile();
 
     std::vector<OverscaledTileID> idealTiles;
+    std::vector<double> splitZooms;
     std::vector<OverscaledTileID> panTiles;
 
     util::TileCoverParameters tileCoverParameters = {.transformState = parameters.transformState,
@@ -144,7 +145,7 @@ void TilePyramid::update(const std::vector<Immutable<style::LayerProperties>>& l
             }
         }
 
-        idealTiles = util::tileCover(tileCoverParameters, idealZoom, zoomRange, tileZoom);
+        idealTiles = util::tileCover(tileCoverParameters, idealZoom, zoomRange, tileZoom, &splitZooms);
         if (parameters.mode == MapMode::Tile && type != SourceType::Raster && type != SourceType::RasterDEM &&
             idealTiles.size() > 1) {
             mln::Log::Warning(mln::Event::General,
@@ -235,21 +236,6 @@ void TilePyramid::update(const std::vector<Immutable<style::LayerProperties>>& l
                                  zoomRange,
                                  maxParentTileOverscaleFactor);
 
-    // The geometry crossfade (`tileFade`): a tile that leaves the cover stays drawn, under the cover, for the fade.
-    const TimePoint now = Clock::now();
-    continuous = parameters.mode == MapMode::Continuous;
-    retiring.clear();
-    // Two tiles of one place at two zooms (one is the other or holds it): a change of the cover's level there.
-    const auto overlaps = [](const UnwrappedTileID& a, const UnwrappedTileID& b) {
-        if (a.wrap != b.wrap) return false;
-        const auto& low = a.canonical.z <= b.canonical.z ? a.canonical : b.canonical;
-        const auto& high = a.canonical.z <= b.canonical.z ? b.canonical : a.canonical;
-        const int dz = high.z - low.z;
-        return (high.x >> dz) == low.x && (high.y >> dz) == low.y;
-    };
-    std::vector<UnwrappedTileID> cover;
-    cover.reserve(renderedTiles.size());
-    for (const auto& entry : renderedTiles) cover.push_back(entry.first);
     for (auto previouslyRenderedTile : previouslyRenderedTiles) {
         Tile& tile = previouslyRenderedTile.second;
         tile.markRenderedPreviously();
@@ -259,66 +245,9 @@ void TilePyramid::update(const std::vector<Immutable<style::LayerProperties>>& l
             retainTileFn(tile, TileNecessity::Optional);
             addRenderTile(previouslyRenderedTile.first, tile);
         }
-        // only a tile the cover now draws at another zoom fades out under it; one that left the view goes at once
-        const bool replaced = std::any_of(cover.begin(), cover.end(), [&](const UnwrappedTileID& id) {
-            return overlaps(id, previouslyRenderedTile.first);
-        });
-        if (continuous && replaced && tile.isRenderable()) {
-            auto [entry, fresh] = retiredAt.emplace(previouslyRenderedTile.first, now);
-            if (fresh) {
-                // a tile still coming in leaves from where it had come to, not from whole
-                const float shown = tileFade(previouslyRenderedTile.first, now).opacity;
-                if (shown < 1.0f) entry->second = now - geometryFadeDuration / 2 - std::chrono::duration_cast<Duration>(geometryFadeDuration / 2 * (1.0f - shown));
-            }
-            const auto left = entry->second;
-            if (now - left < geometryFadeDuration) {
-                retainTileFn(tile, TileNecessity::Optional);
-                addRenderTile(previouslyRenderedTile.first, tile);
-                retiring.insert(previouslyRenderedTile.first);
-            }
-        }
     }
-    // A tile drawn in the cover again is no longer leaving; one drawn for the first time (or again) comes in now.
-    geometryFading = false;
-    std::map<UnwrappedTileID, float> returning;
-    for (auto it = retiredAt.begin(); it != retiredAt.end();) {
-        const bool drawn = renderedTiles.count(it->first) != 0;
-        if (drawn && !retiring.count(it->first)) {
-            // back in the cover while leaving (a pinch to and fro round a whole zoom): it comes in from where it was
-            const double half = std::chrono::duration<double>(geometryFadeDuration).count() / 2;
-            const double since = std::chrono::duration<double>(now - it->second).count();
-            returning[it->first] = static_cast<float>(1.0 - std::clamp((since - half) / half, 0.0, 1.0));
-        }
-        if ((drawn && !retiring.count(it->first)) || (!drawn && now - it->second >= geometryFadeDuration)) {
-            it = retiredAt.erase(it);
-        } else {
-            geometryFading = geometryFading || retiring.count(it->first) != 0;
-            ++it;
-        }
-    }
-    for (auto it = shownAt.begin(); it != shownAt.end();) {
-        if (!renderedTiles.count(it->first) || retiring.count(it->first)) {
-            it = shownAt.erase(it);
-        } else {
-            ++it;
-        }
-    }
-    for (const auto& entry : renderedTiles) {
-        if (retiring.count(entry.first)) continue;
-        auto [shownEntry, fresh] = shownAt.emplace(entry.first, now);
-        if (fresh) {
-            if (const auto back = returning.find(entry.first); back != returning.end()) {
-                shownEntry->second = now - std::chrono::duration_cast<Duration>(geometryFadeDuration / 2 * back->second);
-            } else if (std::none_of(retiring.begin(), retiring.end(), [&](const UnwrappedTileID& id) {
-                           return overlaps(id, entry.first);
-                       })) {
-                // nothing of another zoom under it (a tile coming into view as the map pans): whole at once
-                shownEntry->second = now - geometryFadeDuration;
-            }
-        }
-        const auto shown = shownEntry->second;
-        geometryFading = geometryFading || (continuous && now - shown < geometryFadeDuration / 2);
-    }
+
+    updateLodBlends(parameters, idealTiles, splitZooms, zoomRange, getTileFn, createTileFn, retainTileFn);
 
     if (type != SourceType::Annotations && cacheEnabled) {
         auto conservativeCacheSize = static_cast<size_t>(
@@ -456,8 +385,8 @@ std::unordered_map<std::string, std::vector<Feature>> TilePyramid::queryRendered
     for (const auto& entry : sortedTiles) {
         const UnwrappedTileID& id = entry.first;
         Tile& tile = entry.second;
-        // a tile leaving the cover is only fading out under its replacement: its features are not the map's
-        if (retiring.count(id)) continue;
+        // a parent drawn only under its children to blend the two (`lodBlend`): its features are not the map's
+        if (lodBlend(id).extra) continue;
 
         const auto scale = static_cast<float>(transformState.getScale() /
                                               (1 << id.canonical.z)); // equivalent to std::pow(2,
@@ -519,10 +448,9 @@ void TilePyramid::dumpDebugLogs() const {
 
 void TilePyramid::clearAll() {
     fadingTiles = false;
-    geometryFading = false;
-    shownAt.clear();
-    retiredAt.clear();
-    retiring.clear();
+    lodArriving = false;
+    lodStates.clear();
+    lodBlends.clear();
     tiles.clear();
     renderedTiles.clear();
     cache.clear();
@@ -533,21 +461,142 @@ void TilePyramid::addRenderTile(const UnwrappedTileID& tileID, Tile& tile) {
     renderedTiles.emplace(tileID, tile);
 }
 
-TilePyramid::TileFade TilePyramid::tileFade(const UnwrappedTileID& id, TimePoint now) const {
-    if (!continuous) return {};
+TilePyramid::LodBlend TilePyramid::lodBlend(const UnwrappedTileID& id) const {
+    const auto found = lodBlends.find(id);
+    return found == lodBlends.end() ? LodBlend{} : found->second;
+}
+
+void TilePyramid::updateLodBlends(const TileParameters& parameters,
+                                  const std::vector<OverscaledTileID>& idealTiles,
+                                  const std::vector<double>& splitZooms,
+                                  Range<uint8_t> zoomRange,
+                                  const std::function<Tile*(const OverscaledTileID&)>& getTile,
+                                  const std::function<Tile*(const OverscaledTileID&)>& createTile,
+                                  const std::function<void(Tile&, TileNecessity)>& retainTile) {
+    lodBlends.clear();
+    lodArriving = false;
+    if (parameters.mode != MapMode::Continuous || splitZooms.size() != idealTiles.size()) {
+        lodStates.clear();
+        return;
+    }
+    const TimePoint now = Clock::now();
     const auto smooth = [](double t) {
         t = std::clamp(t, 0.0, 1.0);
-        return static_cast<float>(t * t * (3 - 2 * t));
+        return t * t * (3 - 2 * t);
     };
-    const double half = std::chrono::duration<double>(geometryFadeDuration).count() / 2;
-    if (retiring.count(id)) {
-        const auto left = retiredAt.find(id);
-        const double since = left == retiredAt.end() ? 0 : std::chrono::duration<double>(now - left->second).count();
-        return {1.0f - smooth((since - half) / half), true};
+    // whether a tile of the cover other than the ideal ones (MapLibre's stand-ins) lies inside `area`
+    const auto covered = [&](const UnwrappedTileID& area) {
+        for (const auto& entry : renderedTiles) {
+            const UnwrappedTileID& id = entry.first;
+            if (id.wrap != area.wrap || id.canonical.z <= area.canonical.z) continue;
+            const int dz = id.canonical.z - area.canonical.z;
+            if ((id.canonical.x >> dz) == area.canonical.x && (id.canonical.y >> dz) == area.canonical.y) return true;
+        }
+        return false;
+    };
+
+    struct Parent {
+        Tile* tile = nullptr;
+        std::array<int, 4> share{{lodShareSteps, lodShareSteps, lodShareSteps, lodShareSteps}};
+        bool drawn = false;
+    };
+    std::map<UnwrappedTileID, Parent> parents;
+    std::map<UnwrappedTileID, LodState> states;
+    for (std::size_t i = 0; i < idealTiles.size(); i++) {
+        const OverscaledTileID& id = idealTiles[i];
+        // how far past the zoom where the tile replaced its parent the cover is; a whole zoom or more, or a tile no
+        // zoom brought in, and there is nothing to blend
+        const double past = splitZooms[i] - id.canonical.z;
+        if (!(past >= 0 && past < 1) || id.canonical.z == 0 || id.canonical.z - 1 < zoomRange.min ||
+            id.overscaledZ != id.canonical.z) {
+            continue;
+        }
+        const UnwrappedTileID child = id.toUnwrapped();
+        const UnwrappedTileID parentID(id.wrap, CanonicalTileID(id.canonical.z - 1, id.canonical.x >> 1, id.canonical.y >> 1));
+        const OverscaledTileID parentTileID(parentID.canonical.z, parentID.wrap, parentID.canonical);
+        const bool blending = past < lodBlendZooms;
+        Tile* parent = getTile(parentTileID);
+        // within the blend the parent is the level the zoom goes back to: keep it, or ask for it (a zoom out)
+        if (!parent && blending) parent = createTile(parentTileID);
+        if (parent && blending) retainTile(*parent, TileNecessity::Required);
+        if (!parent || !parent->isRenderable()) continue;
+        const Tile* tile = getTile(id);
+        const bool ready = tile && tile->isRenderable();
+        const auto previous = lodStates.find(child);
+
+        LodState::Kind kind;
+        double target;
+        if (ready && (blending || previous != lodStates.end())) {
+            kind = LodState::Kind::Both;
+            target = smooth(past / lodBlendZooms);
+        } else if (!ready && !covered(child)) {
+            // still loading, and no finer stand-in for it: the parent draws its place whole until it comes
+            kind = LodState::Kind::ParentOnly;
+            target = 0;
+        } else {
+            continue;
+        }
+        LodState state = previous != lodStates.end()
+                             ? previous->second
+                             : LodState{.kind = kind, .shown = target, .from = target, .since = now - lodArrivalDuration};
+        if (state.kind != kind) {
+            // a level that has just loaded comes in from what was drawn; one that is gone goes at once
+            state.from = kind == LodState::Kind::ParentOnly ? 0.0 : state.shown;
+            state.since = kind == LodState::Kind::ParentOnly ? now - lodArrivalDuration : now;
+            state.kind = kind;
+        }
+        const double arrived = smooth(std::chrono::duration<double>(now - state.since).count() /
+                                      std::chrono::duration<double>(lodArrivalDuration).count());
+        state.shown = state.from + (target - state.from) * arrived;
+        if (arrived < 1) lodArriving = true;
+        // the child whole and nothing left to bring in: its blend is over
+        if (state.shown >= 1 && arrived >= 1) continue;
+        states.emplace(child, state);
+
+        // the share of the pixels the child draws, in steps the parent can tell apart per quadrant
+        const int share = static_cast<int>(std::lround(std::clamp(state.shown, 0.0, 1.0) * lodShareSteps));
+        if (share >= lodShareSteps) continue;
+        Parent& entry = parents[parentID];
+        entry.tile = parent;
+        entry.share[(id.canonical.x & 1) + 2 * (id.canonical.y & 1)] = share;
+        if (share <= 0) {
+            lodBlends[child].hidden = true;
+        } else {
+            lodBlends[child].fade = static_cast<float>(share) / lodShareSteps;
+        }
     }
-    const auto shown = shownAt.find(id);
-    if (shown == shownAt.end()) return {};
-    return {smooth(std::chrono::duration<double>(now - shown->second).count() / half), false};
+    lodStates = std::move(states);
+
+    for (auto& [parentID, entry] : parents) {
+        retainTile(*entry.tile, TileNecessity::Required);
+        int code = 0;
+        for (int q = 0; q < 4; q++) code |= entry.share[q] << (lodShareBits * q);
+        LodBlend& blend = lodBlends[parentID];
+        blend.fade = -1.0f - static_cast<float>(code);
+        blend.parent = true;
+        blend.hidden = false;
+        if (!renderedTiles.count(parentID)) {
+            blend.extra = true;
+            addRenderTile(parentID, *entry.tile);
+        }
+    }
+
+    // Any other tile of the cover in a quadrant a parent draws whole (MapLibre's stand-ins for a child still loading)
+    // gives way to it in fill and line layers.
+    if (parents.empty()) return;
+    for (const auto& item : renderedTiles) {
+        const UnwrappedTileID& id = item.first;
+        if (lodBlends.count(id)) continue;
+        for (int z = id.canonical.z - 1; z >= 0; z--) {
+            const int dz = id.canonical.z - z;
+            const auto found = parents.find(UnwrappedTileID(
+                id.wrap, CanonicalTileID(static_cast<uint8_t>(z), id.canonical.x >> dz, id.canonical.y >> dz)));
+            if (found == parents.end()) continue;
+            const int quadrant = ((id.canonical.x >> (dz - 1)) & 1) + 2 * ((id.canonical.y >> (dz - 1)) & 1);
+            if (found->second.share[quadrant] <= 0) lodBlends[id].hidden = true;
+            break;
+        }
+    }
 }
 
 void TilePyramid::updateFadingTiles() {

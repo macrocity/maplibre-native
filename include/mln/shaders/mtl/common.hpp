@@ -241,6 +241,27 @@ static_assert(sizeof(ProjectionUBO) == 11 * 16, "wrong size");
 #define GLOBE_POLE_NORTH_Y -32767.5
 #define GLOBE_POLE_SOUTH_Y 32766.5
 
+// The blend between two levels of detail (TilePyramid::lodBlend): whether a fill or line fragment of a tile is drawn.
+// A tile takes the pixels whose dither value is below its share (`fade`, 1 for all of them); a parent drawn under its
+// children (`fade` < 0, -1 less its children's shares, 6 bits per quadrant of its extent) takes the others, and none
+// outside its own extent. The dither depends on the pixel alone, so every layer of a pixel takes the same level.
+inline float lodBlend(float fade, float2 fragCoord, float2 tilePos) {
+    if (fade >= 1.0) {
+        return 1.0;
+    }
+    const float dither = fract(52.9829189 * fract(dot(fragCoord, float2(0.06711056, 0.00583715))));
+    if (fade >= 0.0) {
+        return dither < fade ? 1.0 : 0.0;
+    }
+    if (tilePos.x < 0.0 || tilePos.y < 0.0 || tilePos.x >= 8192.0 || tilePos.y >= 8192.0) {
+        return 0.0;
+    }
+    const uint shares = uint(-fade - 1.0 + 0.5);
+    const uint quadrant = (tilePos.x >= 4096.0 ? 1u : 0u) + (tilePos.y >= 4096.0 ? 2u : 0u);
+    const float share = float((shares >> (6u * quadrant)) & 63u) / 63.0;
+    return dither < share ? 0.0 : 1.0;
+}
+
 #if defined(PROJECTION_GLOBE)
 
 #define GLOBE_RADIUS 6371008.8
@@ -342,6 +363,7 @@ inline float antimeridianClipX(float2 posInTile, device const ProjectionUBO& pro
 inline bool clippedAtAntimeridian(float tileX) {
     return tileX < 0.0 || tileX >= 8192.0;
 }
+
 
 // The variant for geometry that can carry pole vertices; rawPos is the untranslated position.
 inline float4 projectTile(float2 pos, float2 rawPos, device const ProjectionUBO& projection) {

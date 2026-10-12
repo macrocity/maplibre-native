@@ -58,10 +58,13 @@ public:
     const OverscaledTileID& getOverscaledTileID() const;
     bool holdForFade() const;
 
-    /// The geometry crossfade (TilePyramid::tileFade): how much of the tile fill and line layers draw, and whether it
-    /// has left the cover and stays only under the tiles that replaced it (drawn without their clipping).
-    float fadeOpacity = 1.0f;
-    bool retiring = false;
+    /// The blend between two levels of detail (TilePyramid::lodBlend) in fill and line layers: the tile's
+    /// `tile_fade`; whether it is a parent drawn under its children, outside the tile clipping masks; whether only
+    /// fill and line layers draw it (not in the cover); whether they leave it to its parent.
+    float lodFade = 1.0f;
+    bool lodParent = false;
+    bool lodExtra = false;
+    bool lodHidden = false;
 
     Bucket* getBucket(const style::Layer::Impl&) const;
     const LayerRenderData* getLayerRenderData(const style::Layer::Impl&) const;
