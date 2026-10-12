@@ -141,7 +141,7 @@ public:
                 .gapwidth_t = 0.f,
                 .offset_t = 0.f,
                 .width_t = 0.f,
-                .pad1 = 0
+                .tile_fade = 1.0f
             };
 
 #if MLN_UBO_CONSOLIDATION
@@ -573,12 +573,18 @@ void RenderTileSource::prepare(const SourcePrepareParameters& parameters) {
     MLN_ZONE_STR(baseImpl->id);
     bearing = static_cast<float>(parameters.transform.state.getBearing());
     filteredRenderTiles = nullptr;
+    fadingGeometryRenderTiles = nullptr;
     renderTilesSortedByY = nullptr;
     auto tiles = makeMutable<std::vector<RenderTile>>();
     tiles->reserve(tilePyramid.getRenderedTiles().size());
     for (auto& entry : tilePyramid.getRenderedTiles()) {
         tiles->emplace_back(entry.first, entry.second);
         tiles->back().prepare(parameters);
+        const auto blend = tilePyramid.lodBlend(entry.first);
+        tiles->back().lodFade = blend.fade;
+        tiles->back().lodParent = blend.parent;
+        tiles->back().lodExtra = blend.extra;
+        tiles->back().lodHidden = blend.hidden;
     }
     featureState.coalesceChanges(*tiles);
     renderTiles = std::move(tiles);
@@ -596,7 +602,7 @@ RenderTiles RenderTileSource::getRenderTiles() const {
     if (!filteredRenderTiles) {
         auto result = std::make_shared<std::vector<std::reference_wrapper<const RenderTile>>>();
         for (const auto& renderTile : *renderTiles) {
-            if (renderTile.holdForFade()) {
+            if (renderTile.holdForFade() || renderTile.lodExtra) {
                 continue;
             }
             result->emplace_back(renderTile);
@@ -604,6 +610,20 @@ RenderTiles RenderTileSource::getRenderTiles() const {
         filteredRenderTiles = std::move(result);
     }
     return filteredRenderTiles;
+}
+
+RenderTiles RenderTileSource::getRenderTilesFadingGeometry() const {
+    if (!fadingGeometryRenderTiles) {
+        auto result = std::make_shared<std::vector<std::reference_wrapper<const RenderTile>>>();
+        for (const auto& renderTile : *renderTiles) {
+            if ((renderTile.holdForFade() && !renderTile.lodParent) || renderTile.lodHidden) {
+                continue;
+            }
+            result->emplace_back(renderTile);
+        }
+        fadingGeometryRenderTiles = std::move(result);
+    }
+    return fadingGeometryRenderTiles;
 }
 
 RenderTiles RenderTileSource::getRenderTilesSortedByYPosition() const {
@@ -621,6 +641,8 @@ RenderTiles RenderTileSource::getRenderTilesSortedByYPosition() const {
         auto result = std::make_shared<std::vector<std::reference_wrapper<const RenderTile>>>();
         result->reserve(renderTiles->size());
         for (const auto& renderTile : *renderTiles) {
+            // a parent drawn only to blend its children's fill and line layers draws no labels
+            if (renderTile.lodExtra) continue;
             result->emplace_back(renderTile);
         }
         std::sort(result->begin(), result->end(), comp);

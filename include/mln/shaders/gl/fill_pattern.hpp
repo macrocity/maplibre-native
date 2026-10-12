@@ -35,7 +35,7 @@ layout (std140) uniform FillPatternTilePropsUBO {
     highp vec4 u_pattern_from;
     highp vec4 u_pattern_to;
     highp vec2 u_texsize;
-    lowp float tileprops_pad1;
+    highp float u_tile_fade;
     lowp float tileprops_pad2;
 };
 
@@ -65,6 +65,8 @@ out lowp vec4 pattern_from;
 layout (location = 3) in lowp vec4 a_pattern_to;
 out lowp vec4 pattern_to;
 #endif
+
+out highp vec2 v_lod_pos;
 
 void main() {
     #ifndef HAS_UNIFORM_u_opacity
@@ -99,13 +101,14 @@ mediump vec4 pattern_to = u_pattern_to;
 
     v_pos_a = get_pattern_pos(u_pixel_coord_upper, u_pixel_coord_lower, fromScale * display_size_a, tileZoomRatio, a_pos);
     v_pos_b = get_pattern_pos(u_pixel_coord_upper, u_pixel_coord_lower, toScale * display_size_b, tileZoomRatio, a_pos);
+    v_lod_pos = a_pos;
 }
 )";
     static constexpr const char* fragment = R"(layout (std140) uniform FillPatternTilePropsUBO {
     highp vec4 u_pattern_from;
     highp vec4 u_pattern_to;
     highp vec2 u_texsize;
-    lowp float tileprops_pad1;
+    highp float u_tile_fade;
     lowp float tileprops_pad2;
 };
 
@@ -132,6 +135,8 @@ in lowp vec4 pattern_from;
 #ifndef HAS_UNIFORM_u_pattern_to
 in lowp vec4 pattern_to;
 #endif
+
+in highp vec2 v_lod_pos;
 
 void main() {
     #ifdef HAS_UNIFORM_u_opacity
@@ -162,6 +167,12 @@ mediump vec4 pattern_to = u_pattern_to;
     vec4 color2 = texture(u_image, pos2);
 
     fragColor = mix(color1, color2, u_fade) * opacity;
+
+    // the blend between two levels of detail (TilePyramid::lodBlend): a pixel of the other level is left
+    // whole, colour and depth (the two levels' depths differ by a hair in a tilted view, and fought)
+    if (lod_blend(u_tile_fade, gl_FragCoord.xy, v_lod_pos) < 0.5) {
+        discard;
+    }
 
 #ifdef OVERDRAW_INSPECTOR
     fragColor = vec4(1.0);

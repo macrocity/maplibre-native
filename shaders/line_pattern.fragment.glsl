@@ -4,7 +4,7 @@ layout (std140) uniform LinePatternTilePropsUBO {
     mediump vec4 u_scale;
     highp vec2 u_texsize;
     highp float u_fade;
-    lowp float tileprops_pad1;
+    highp float u_tile_fade;
 };
 
 layout (std140) uniform LineEvaluatedPropsUBO {
@@ -34,6 +34,8 @@ in float v_gamma_scale;
 #ifdef PROJECTION_GLOBE
 in float v_tile_x;
 #endif
+
+in highp vec2 v_lod_pos;
 
 void main() {
 #ifdef PROJECTION_GLOBE
@@ -88,6 +90,12 @@ void main() {
     vec4 color = mix(texture(u_image, pos_a), texture(u_image, pos_b), u_fade);
 
     fragColor = color * alpha * opacity;
+
+    // the blend between two levels of detail (TilePyramid::lodBlend): a pixel of the other level is left
+    // whole, colour and depth (the two levels' depths differ by a hair in a tilted view, and fought)
+    if (lod_blend(u_tile_fade, gl_FragCoord.xy, v_lod_pos) < 0.5) {
+        discard;
+    }
 
 #ifdef OVERDRAW_INSPECTOR
     fragColor = vec4(1.0);

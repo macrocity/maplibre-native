@@ -401,7 +401,7 @@ void RenderLineLayer::update(gfx::ShaderRegistry& shaders,
             builder.setVertexAttributes(std::move(vertexAttrs));
         };
 
-    tileLayerGroup->setStencilTiles(renderTiles);
+    tileLayerGroup->setStencilTiles(clippedRenderTiles());
 
     StringIDSetsPair propertiesAsUniforms;
     for (const RenderTile& tile : *renderTiles) {
@@ -607,6 +607,7 @@ void RenderLineLayer::update(gfx::ShaderRegistry& shaders,
             }
         }
     }
+    applyTileFades(*tileLayerGroup);
 }
 
 } // namespace mln

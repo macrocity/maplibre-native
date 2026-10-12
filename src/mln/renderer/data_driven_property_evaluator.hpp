@@ -71,8 +71,9 @@ public:
 
 private:
     Faded<T> calculate(const T& min, const T& mid, const T& max) const {
-        const float z = parameters.z;
-        return z > parameters.zoomHistory.lastIntegerZoom ? Faded<T>{min, mid} : Faded<T>{max, mid};
+        // from the value at the whole zoom below to the one at the next (getCrossfadeParameters)
+        (void)mid;
+        return Faded<T>{min, max};
     };
 
     const PropertyEvaluationParameters& parameters;

@@ -15,7 +15,7 @@ layout (std140) uniform FillOutlineDrawableUBO {
     // Interpolations
     highp float u_outline_color_t;
     highp float u_opacity_t;
-    lowp float drawable_pad1;
+    highp float u_tile_fade;
     lowp float drawable_pad2;
 };
 
@@ -35,10 +35,13 @@ out vec2 v_pos;
 #pragma mapbox: define highp vec4 outline_color
 #pragma mapbox: define lowp float opacity
 
+out highp vec3 v_lod;
+
 void main() {
     #pragma mapbox: initialize highp vec4 outline_color
     #pragma mapbox: initialize lowp float opacity
 
     gl_Position = projectTile(a_pos, a_pos);
     v_pos = (gl_Position.xy / gl_Position.w + 1.0) / 2.0 * u_world_size;
+    v_lod = vec3(a_pos, u_tile_fade);
 }

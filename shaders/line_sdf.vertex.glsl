@@ -40,7 +40,7 @@ layout (std140) uniform LineSDFDrawableUBO {
     lowp float u_offset_t;
     lowp float u_width_t;
     lowp float u_floorwidth_t;
-    lowp float drawable_pad1;
+    highp float u_tile_fade;
     lowp float drawable_pad2;
 };
 
@@ -73,6 +73,8 @@ out float v_gamma_scale;
 #ifdef PROJECTION_GLOBE
 out float v_tile_x;
 #endif
+
+out highp vec3 v_lod;
 
 void main() {
     #pragma mapbox: initialize highp vec4 color
@@ -129,6 +131,7 @@ void main() {
     v_tile_x = antimeridianClipX(extrudedPos);
     vec4 projected_extrude = gl_Position - projected_no_extrude;
 #else
+    vec2 extrudedPos = pos + (offset2 + dist) / u_ratio;
     vec4 projected_extrude = u_matrix * vec4(dist / u_ratio, 0.0, 0.0);
     gl_Position = u_matrix * vec4(pos + offset2 / u_ratio, 0.0, 1.0) + projected_extrude;
 #endif
@@ -142,4 +145,5 @@ void main() {
     v_tex_b = vec2(a_linesofar * u_patternscale_b.x / floorwidth, normal.y * u_patternscale_b.y + u_tex_y_b);
 
     v_width2 = vec2(outset, inset);
+    v_lod = vec3(extrudedPos, u_tile_fade);
 }

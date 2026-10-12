@@ -22,6 +22,8 @@ in float v_gamma_scale;
 in float v_tile_x;
 #endif
 
+in highp vec3 v_lod;
+
 void main() {
 #ifdef PROJECTION_GLOBE
     if (clippedAtAntimeridian(v_tile_x)) {
@@ -42,6 +44,12 @@ void main() {
     float alpha = clamp(min(dist - (v_width2.t - blur2), v_width2.s - dist) / blur2, 0.0, 1.0);
 
     fragColor = color * (alpha * opacity);
+
+    // the blend between two levels of detail (TilePyramid::lodBlend): a pixel of the other level is left
+    // whole, colour and depth (the two levels' depths differ by a hair in a tilted view, and fought)
+    if (lod_blend(v_lod.z, gl_FragCoord.xy, v_lod.xy) < 0.5) {
+        discard;
+    }
 
 #ifdef OVERDRAW_INSPECTOR
     fragColor = vec4(1.0);

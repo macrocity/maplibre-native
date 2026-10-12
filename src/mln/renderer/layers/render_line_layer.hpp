@@ -43,6 +43,7 @@ private:
     void evaluate(const PropertyEvaluationParameters &) override;
     bool hasTransition() const override;
     bool hasCrossfade() const override;
+    bool fadesTileGeometry() const override { return true; }
     void prepare(const LayerPrepareParameters &) override;
 
     bool queryIntersectsFeature(const GeometryCoordinates &,
