@@ -490,6 +490,8 @@ public:
   /// Center of the pinch gesture on the previous iteration of the gesture.
   CGPoint _previousPinchCenterPoint;
   NSUInteger _previousPinchNumberOfTouches;
+  /// The pinch's scale that the map's zoom already shows.
+  CGFloat _appliedPinchScale;
 
   CLLocationDistance _distanceFromOldUserLocation;
 
@@ -2286,6 +2288,7 @@ public:
 
   if (pinch.state == UIGestureRecognizerStateBegan) {
     self.scale = powf(2, [self zoomLevel]);
+    _appliedPinchScale = pinch.scale;
 
     if (abs(pinch.velocity) > abs(self.rotate.velocity)) {
       self.isZooming = YES;
@@ -2293,14 +2296,21 @@ public:
     [self notifyGestureDidBegin];
   } else if (pinch.state == UIGestureRecognizerStateChanged) {
     // Zoom limiting happens at the core level.
-    CGFloat newScale = self.scale * pinch.scale;
-    double newZoom = log2(newScale);
+    // The pinch changes the zoom the map has now by what the fingers did since the last change. A zoom counted from
+    // the one the gesture began at undid, on every frame, the zoom the globe takes with its center's latitude to
+    // keep the planet's size (a pinch or a turn about the fingers moves the center): the planet's size shook, and
+    // near a pole it grew many times over.
+    double newZoom = [self zoomLevel];
+    if (pinch.scale > 0 && _appliedPinchScale > 0) {
+      newZoom += log2(pinch.scale / _appliedPinchScale);
+    }
 
     // Calculates the final camera zoom, has no effect within current map camera.
     MLNMapCamera *toCamera = [self cameraByZoomingToZoomLevel:newZoom
                                             aroundAnchorPoint:centerPoint];
 
     if ([self _shouldChangeFromCamera:oldCamera toCamera:toCamera]) {
+      _appliedPinchScale = pinch.scale;
       self.mbglMap.jumpTo(mln::CameraOptions().withZoom(newZoom).withAnchor(
           mln::ScreenCoordinate{centerPoint.x, centerPoint.y}));
 
@@ -2328,7 +2338,8 @@ public:
 
     NSTimeInterval duration = (velocity > 0 ? 1 : 0.25) * self.decelerationRate;
 
-    CGFloat scale = self.scale * pinch.scale;
+    // The glide starts from the zoom the map has, as the pinch did.
+    CGFloat scale = pow(2, [self zoomLevel]);
     CGFloat newScale = scale;
     if (velocity >= 0) {
       newScale += scale * velocity * duration * 0.1;
@@ -2643,7 +2654,11 @@ public:
 
     if (self.isQuickZoomReversed) distance = -distance;
 
-    CGFloat newZoom = MAX(log2f(self.scale) + (distance / 75), *self.mbglMap.getBounds().minZoom);
+    // The globe's zoom is below the minimum where its center is far from the equator: the floor is never above
+    // the zoom the gesture began at, or its first change would jump up to it.
+    CGFloat startZoom = log2f(self.scale);
+    CGFloat newZoom = MAX(startZoom + (distance / 75),
+                          MIN(startZoom, (CGFloat)*self.mbglMap.getBounds().minZoom));
 
     if ([self zoomLevel] == newZoom) return;
 

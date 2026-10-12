@@ -917,10 +917,16 @@ final class MapGestureDetector {
     animator.setDuration(animationTime);
     animator.setInterpolator(new DecelerateInterpolator());
     animator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+      // Each frame adds what the animation gained since the last one to the zoom the map has now. The globe changes
+      // its zoom with its center's latitude to keep the planet's size, and a zoom about a point moves the center:
+      // setting the animation's own zoom undid that on every frame, and the planet's size shook.
+      private float applied = (float) currentZoom;
 
       @Override
       public void onAnimationUpdate(@NonNull ValueAnimator animation) {
-        transform.setZoom((Float) animation.getAnimatedValue(), animationFocalPoint);
+        float value = (Float) animation.getAnimatedValue();
+        transform.zoomBy(value - applied, animationFocalPoint);
+        applied = value;
       }
     });
 

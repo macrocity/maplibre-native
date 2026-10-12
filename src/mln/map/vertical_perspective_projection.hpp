@@ -70,6 +70,19 @@ public:
                                 const LatLng& zoomLocation,
                                 double zoomDelta);
 
+    /// How much of a turn or a tilt about `anchor` moves the center to keep `location`, the place under it, there:
+    /// from 1, the whole of it, where the ground under the anchor faces the camera as on a flat map, down to 0, a turn
+    /// about the center of the view. It falls with the arc from the center to the place, as the place nears a pole
+    /// (the bearing is counted from north, which a pole has none of), with their difference in longitude (the exact
+    /// solution fails behind a pole), and as the anchor's ray nears the horizon or leaves the planet. A turn about a
+    /// place on the limb is no turn in the plane of the screen: it rolls the planet over.
+    static double anchorHold(const TransformState&, const ScreenCoordinate& anchor, const LatLng& location);
+
+    /// After the bearing, the pitch or the roll changed: move the center so that `location` stays under `anchor`, by
+    /// as much as `anchorHold` allows. GL JS turns the globe about its center everywhere; this keeps the flat map's
+    /// turn about the fingers where the globe looks flat.
+    static void turnAroundPoint(TransformState&, const ScreenCoordinate& anchor, const LatLng& location);
+
     /// The shorter signed way around from one angle to the other, in degrees.
     static double differenceOfAnglesDegrees(double from, double to);
 

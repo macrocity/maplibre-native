@@ -1582,6 +1582,135 @@ TEST(GlobeTransform, ZoomingOutAroundAnAnchorNearTheHorizonStaysContinuous) {
     }
 }
 
+namespace {
+
+// The arc between two places, in degrees.
+double arcDegrees(const LatLng& a, const LatLng& b) {
+    const vec3 va = VerticalPerspectiveProjection::surfaceVector(a);
+    const vec3 vb = VerticalPerspectiveProjection::surfaceVector(b);
+    return util::rad2deg(std::acos(std::clamp(va[0] * vb[0] + va[1] * vb[1] + va[2] * vb[2], -1.0, 1.0)));
+}
+
+} // namespace
+
+TEST(GlobeTransform, ATurnBesideASmallGlobeKeepsTheCenter) {
+    // Two fingers turning on the space beside the planet, or on its limb: their anchor snaps to the horizon, 80
+    // degrees from the center. Holding that place under the fingers rolled the planet over: a 54 degree turn threw
+    // the center 57 degrees away (macrocity/app#1481). The globe turns about the center of the view instead.
+    for (const ScreenCoordinate& anchor : {ScreenCoordinate{700, 80}, ScreenCoordinate{520, 210}}) {
+        Transform transform;
+        setUpGlobe(transform, {35.0, -100.0}, 0.5);
+        const double zoom = transform.getZoom();
+        for (int i = 1; i <= 54; ++i) {
+            transform.jumpTo(CameraOptions().withBearing(-i).withAnchor(anchor));
+            EXPECT_NEAR(35.0, transform.getLatLng().latitude(), 1e-9) << "step " << i;
+            EXPECT_NEAR(-100.0, transform.getLatLng().longitude(), 1e-9) << "step " << i;
+            EXPECT_NEAR(zoom, transform.getZoom(), 1e-9) << "step " << i;
+        }
+        EXPECT_NEAR(-54.0, util::rad2deg(-transform.getBearing()), 1e-9);
+    }
+}
+
+TEST(GlobeTransform, ATurnAboutFingersOnTheFlatLookingGlobeKeepsThePlaceUnderThem) {
+    // Where the globe looks flat the turn is the flat map's: about the fingers, at any pitch.
+    for (const double pitch : {0.0, 45.0}) {
+        Transform transform;
+        setUpGlobe(transform, {47.5, 19.0}, 8.0, 0.0, pitch);
+        const ScreenCoordinate anchor{250, 380};
+        const LatLng place = transform.screenCoordinateToLatLng(anchor);
+        ASSERT_DOUBLE_EQ(1.0, VerticalPerspectiveProjection::anchorHold(transform.getState(), {anchor.x, 600 - anchor.y}, place));
+        for (int i = 1; i <= 60; ++i) {
+            transform.jumpTo(CameraOptions().withBearing(i).withAnchor(anchor));
+            const ScreenCoordinate after = transform.latLngToScreenCoordinate(place);
+            EXPECT_NEAR(anchor.x, after.x, 0.5) << "pitch " << pitch << " step " << i;
+            EXPECT_NEAR(anchor.y, after.y, 0.5) << "pitch " << pitch << " step " << i;
+        }
+        EXPECT_GT(arcDegrees({47.5, 19.0}, transform.getLatLng()), 0.1);
+    }
+}
+
+TEST(GlobeTransform, TheHoldOfATurnFallsAwayFromTheCenterOfASmallGlobe) {
+    Transform transform;
+    setUpGlobe(transform, {0.0, 0.0}, 1.0);
+    const TransformState& state = transform.getState();
+    const auto hold = [&](double x, double y) {
+        const ScreenCoordinate anchor{x, y};
+        return VerticalPerspectiveProjection::anchorHold(
+            state, {anchor.x, 600 - anchor.y}, transform.screenCoordinateToLatLng(anchor));
+    };
+    EXPECT_DOUBLE_EQ(1.0, hold(400, 300));
+    // The hold only falls on the way out, and is gone well before the limb and beside the planet.
+    double last = 1.0;
+    for (int x = 400; x <= 800; x += 5) {
+        const double value = hold(x, 300);
+        EXPECT_LE(value, last + 1e-12) << "x " << x;
+        EXPECT_LE(last - value, 0.15) << "x " << x;
+        last = value;
+    }
+    const double radius = state.getGlobeRadiusPixels();
+    EXPECT_GT(hold(400 + radius * std::sin(util::deg2rad(10.0)) * 0.8, 300), 0.99);
+    EXPECT_DOUBLE_EQ(0.0, hold(400 + radius * 0.8, 300));
+    EXPECT_DOUBLE_EQ(0.0, hold(790, 20));
+}
+
+TEST(GlobeTransform, ATurnNeverThrowsTheCenter) {
+    // Every anchor on the screen, on and off the planet, flat and tilted, near the equator and near a pole: one
+    // degree of turn moves the center by less than half a degree of arc, and the planet keeps its size.
+    for (const double zoom : {0.5, 1.0, 1.5, 2.0, 3.0, 5.0}) {
+        for (const double latitude : {0.0, 35.0, 70.0, -80.0}) {
+            for (const double pitch : {0.0, 50.0}) {
+                for (int ax = 40; ax < 800; ax += 120) {
+                    for (int ay = 40; ay < 600; ay += 104) {
+                        Transform transform;
+                        setUpGlobe(transform, {latitude, 10.0}, zoom, 0.0, pitch);
+                        const ScreenCoordinate anchor{static_cast<double>(ax), static_cast<double>(ay)};
+                        const double radius = transform.getState().getGlobeRadiusPixels();
+                        LatLng last = transform.getLatLng();
+                        for (int i = 1; i <= 90; ++i) {
+                            transform.jumpTo(CameraOptions().withBearing(i).withAnchor(anchor));
+                            const LatLng center = transform.getLatLng();
+                            ASSERT_LT(arcDegrees(last, center), 0.5)
+                                << "zoom " << zoom << " latitude " << latitude << " pitch " << pitch << " anchor "
+                                << ax << "," << ay << " step " << i;
+                            ASSERT_NEAR(radius, transform.getState().getGlobeRadiusPixels(), radius * 1e-9);
+                            last = center;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+TEST(GlobeTransform, APinchWithATurnOnTheLimbIsSmooth) {
+    // What the map view sends for two fingers that spread and turn on the limb of a small globe, 60 times a second:
+    // the zoom changed by the fingers' change since the last frame about their middle, the middle's own move, the
+    // new bearing about the middle. The planet grows by exactly the fingers' spread on every frame, whatever the
+    // center's latitude does to the zoom, and the center never jumps. Counted from the zoom the gesture began at,
+    // as MLNMapView did, the same frames undid the zoom the globe takes with its latitude and the turn rolled the
+    // center over the pole: 6 degrees a frame, and a planet 11 times too large (macrocity/app#1481).
+    Transform transform;
+    setUpGlobe(transform, {35.0, -100.0}, 0.5);
+    const double step = 1.0 / 60.0;
+    double radius = transform.getState().getGlobeRadiusPixels();
+    LatLng last = transform.getLatLng();
+    for (int i = 1; i <= 60; ++i) {
+        const ScreenCoordinate anchor{560.0 + i * 0.25, 180.0 - i * 0.1};
+        transform.jumpTo(CameraOptions().withZoom(transform.getZoom() + step).withAnchor(anchor));
+        transform.moveBy({0.25, -0.1});
+        transform.jumpTo(CameraOptions().withBearing(-i).withAnchor(anchor));
+        const double grown = transform.getState().getGlobeRadiusPixels();
+        EXPECT_NEAR(radius * std::pow(2.0, step), grown, radius * 1e-6) << "step " << i;
+        const LatLng center = transform.getLatLng();
+        EXPECT_LT(arcDegrees(last, center), 1.0) << "step " << i;
+        radius = grown;
+        last = center;
+    }
+    // The turn arrived whole, and the center stayed on the side of the planet it was on.
+    EXPECT_NEAR(-60.0, util::rad2deg(-transform.getBearing()), 1e-9);
+    EXPECT_LT(arcDegrees({35.0, -100.0}, transform.getLatLng()), 30.0);
+}
+
 TEST(GlobeTransform, PolesAreReachableAndZoomFollowsLatitude) {
     Transform transform;
     setUpGlobe(transform, {0.0, 0.0}, 0.0);

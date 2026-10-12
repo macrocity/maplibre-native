@@ -725,6 +725,11 @@ void Transform::startTransition(const CameraOptions& camera,
             if (globeZoomAround && state.getZoom() != zoomBefore) {
                 VerticalPerspectiveProjection::zoomAroundPoint(
                     state, *anchor, zoomLocation, state.getZoom() - zoomBefore);
+            } else if (globeZoomAround) {
+                // A turn or a tilt. The exact solution alone rolls the planet over when the anchor is far from the
+                // center, on the limb or off the planet: a two finger turn beside a small globe threw the camera
+                // tens of degrees away. Hold the anchor only where the globe looks flat under it.
+                VerticalPerspectiveProjection::turnAroundPoint(state, *anchor, anchorLatLng);
             } else {
                 state.moveLatLng(anchorLatLng, *anchor);
             }
