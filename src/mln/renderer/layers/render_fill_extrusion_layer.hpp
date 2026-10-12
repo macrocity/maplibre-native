@@ -18,6 +18,7 @@ private:
     bool hasTransition() const override;
     bool hasCrossfade() const override;
     bool is3D() const override;
+    bool fadesTileGeometry() const override { return true; }
 
     /// Generate any changes needed by the layer
     void update(gfx::ShaderRegistry &,

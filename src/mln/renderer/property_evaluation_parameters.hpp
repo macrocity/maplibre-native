@@ -26,16 +26,14 @@ public:
           zoomHistory(zoomHistory_),
           defaultFadeDuration(defaultFadeDuration_) {}
 
+    /// A pattern (fill, line, background) or a dash array is laid out in the tiles of the whole zoom below, so on the
+    /// screen it grows with the zoom to twice its size and halves at the next whole zoom. It is blended by the zoom
+    /// between its size at the whole zoom below (`from`, scale 1) and the one it has at the next (`to`, scale 1/2,
+    /// the same on the screen there): continuous through every zoom, and still when the zoom is. It used to blend over
+    /// 300 ms after each whole zoom, from twice or half the size, so the pattern jumped as the zoom passed one.
     CrossfadeParameters getCrossfadeParameters() const {
         const float fraction = z - std::floor(z);
-        const std::chrono::duration<float> d = defaultFadeDuration;
-        const float t = d != std::chrono::duration<float>::zero()
-                            ? std::min((now - zoomHistory.lastIntegerZoomTime) / d, 1.0f)
-                            : 1.0f;
-
-        return z > zoomHistory.lastIntegerZoom
-                   ? CrossfadeParameters{.fromScale = 2.0f, .toScale = 1.0f, .t = fraction + (1.0f - fraction) * t}
-                   : CrossfadeParameters{.fromScale = 0.5f, .toScale = 1.0f, .t = 1 - (1 - t) * fraction};
+        return CrossfadeParameters{.fromScale = 1.0f, .toScale = 0.5f, .t = fraction};
     }
 
     float z;

@@ -20,7 +20,7 @@ struct alignas(16) FillExtrusionDrawableUBO {
     /*  96 */ float color_t;
     /* 100 */ float pattern_from_t;
     /* 104 */ float pattern_to_t;
-    /* 108 */ float pad1;
+    /* 108 */ float tile_fade;
     /* 112 */
 };
 static_assert(sizeof(FillExtrusionDrawableUBO) == 7 * 16);
