@@ -382,47 +382,6 @@ const std::vector<TextureInfo> LocationIndicatorTexturedInfo::textures = {
     TextureInfo{"u_image", idLocationIndicatorTexture},
 };
 
-// Vehicle models
-using VehicleModelShaderInfo = ShaderInfo<BuiltIn::VehicleModelShader, gfx::Backend::Type::OpenGL>;
-
-const std::vector<UniformBlockInfo> VehicleModelShaderInfo::uniformBlocks = {
-    UniformBlockInfo{"VehicleModelPropsUBO", idVehicleModelPropsUBO},
-    UniformBlockInfo{"VehicleModelInstancesUBO", idVehicleModelInstancesUBO},
-    UniformBlockInfo{"VehicleModelDrawableUBO", idVehicleModelDrawableUBO},
-};
-const std::vector<AttributeInfo> VehicleModelShaderInfo::attributes = {
-    AttributeInfo{"a_pos", idVehicleModelPosVertexAttribute},
-    AttributeInfo{"a_normal", idVehicleModelNormalVertexAttribute},
-    AttributeInfo{"a_color", idVehicleModelColorVertexAttribute},
-};
-const std::vector<TextureInfo> VehicleModelShaderInfo::textures = {};
-
-using VehicleModelShadowShaderInfo = ShaderInfo<BuiltIn::VehicleModelShadowShader, gfx::Backend::Type::OpenGL>;
-
-const std::vector<UniformBlockInfo> VehicleModelShadowShaderInfo::uniformBlocks = {
-    UniformBlockInfo{"VehicleModelPropsUBO", idVehicleModelPropsUBO},
-    UniformBlockInfo{"VehicleModelInstancesUBO", idVehicleModelInstancesUBO},
-    UniformBlockInfo{"VehicleModelDrawableUBO", idVehicleModelDrawableUBO},
-};
-const std::vector<AttributeInfo> VehicleModelShadowShaderInfo::attributes = {
-    AttributeInfo{"a_pos", idVehicleModelPosVertexAttribute},
-};
-const std::vector<TextureInfo> VehicleModelShadowShaderInfo::textures = {};
-
-using VehicleModelLabelShaderInfo = ShaderInfo<BuiltIn::VehicleModelLabelShader, gfx::Backend::Type::OpenGL>;
-
-const std::vector<UniformBlockInfo> VehicleModelLabelShaderInfo::uniformBlocks = {
-    UniformBlockInfo{"VehicleModelPropsUBO", idVehicleModelPropsUBO},
-    UniformBlockInfo{"VehicleModelInstancesUBO", idVehicleModelInstancesUBO},
-    UniformBlockInfo{"VehicleModelDrawableUBO", idVehicleModelDrawableUBO},
-};
-const std::vector<AttributeInfo> VehicleModelLabelShaderInfo::attributes = {
-    AttributeInfo{"a_pos", idVehicleModelPosVertexAttribute},
-};
-const std::vector<TextureInfo> VehicleModelLabelShaderInfo::textures = {
-    TextureInfo{"u_image", idVehicleModelLabelTexture},
-};
-
 // Line Gradient
 using LineGradientShaderInfo = ShaderInfo<BuiltIn::LineGradientShader, gfx::Backend::Type::OpenGL>;
 

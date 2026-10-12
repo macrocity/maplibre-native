@@ -181,8 +181,6 @@ add_library(maplibre SHARED
             ${PROJECT_SOURCE_DIR}/style/layers/symbol_layer.hpp
             ${PROJECT_SOURCE_DIR}/style/layers/location_indicator_layer.cpp
             ${PROJECT_SOURCE_DIR}/style/layers/location_indicator_layer.hpp
-            ${PROJECT_SOURCE_DIR}/style/layers/vehicle_model_layer.cpp
-            ${PROJECT_SOURCE_DIR}/style/layers/vehicle_model_layer.hpp
             ${PROJECT_SOURCE_DIR}/style/light.cpp
             ${PROJECT_SOURCE_DIR}/style/light.hpp
             ${PROJECT_SOURCE_DIR}/style/position.cpp

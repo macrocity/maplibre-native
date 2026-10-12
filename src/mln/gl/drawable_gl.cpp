@@ -63,7 +63,7 @@ void DrawableGL::draw(PaintParameters& parameters) const {
         // For 3D mode, stenciling is handled by the layer group
         context.setStencilMode(makeStencilMode(parameters));
     } else if (!getEnableStencil()) {
-        // A 3D drawable outside a tile layer group (the vehicle models) has no group to clear the stencil test the
+        // A 3D drawable outside a tile layer group has no group to clear the stencil test the
         // previous layer left, and would be clipped to that layer's last tile.
         context.setStencilMode(gfx::StencilMode::disabled());
     }

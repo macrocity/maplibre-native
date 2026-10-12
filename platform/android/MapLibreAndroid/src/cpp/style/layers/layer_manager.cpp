@@ -19,7 +19,6 @@
 #include "symbol_layer.hpp"
 #include "fill_extrusion_layer.hpp"
 #include "location_indicator_layer.hpp"
-#include "vehicle_model_layer.hpp"
 
 namespace mln {
 
@@ -84,7 +83,6 @@ LayerManagerAndroid::LayerManagerAndroid() {
 #if !defined(MBGL_LAYER_LOCATION_INDICATOR_DISABLE_ALL)
     addLayerType(std::make_unique<LocationIndicatorJavaLayerPeerFactory>());
 #endif
-    addLayerType(std::make_unique<VehicleModelJavaLayerPeerFactory>());
 }
 
 LayerManagerAndroid::~LayerManagerAndroid() = default;

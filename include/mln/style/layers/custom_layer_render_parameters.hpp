@@ -44,6 +44,12 @@ struct CustomLayerRenderParameters {
     /// The plane behind which sphere positions are on the far side of the globe: `dot(position, xyz) + w < 0`.
     std::array<double, 4> globeClippingPlane;
 
+    /// The depth range `{near, far}` the 3D layers (fill-extrusion buildings) draw into this frame. On OpenGL each 2D
+    /// layer gets its own slice of the depth range and the 3D layers share `[0, depthRangeSize]` before them; set it
+    /// with `glDepthRangef(depthRange3D[0], depthRange3D[1])` and test against the buildings' depth to be hidden by
+    /// them. `{0, 1}` on backends without depth ranges (Metal, Vulkan, WebGPU).
+    std::array<double, 2> depthRange3D;
+
     CustomLayerRenderParameters(const PaintParameters&);
 };
 

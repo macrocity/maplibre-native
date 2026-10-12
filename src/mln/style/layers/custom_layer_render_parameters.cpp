@@ -27,6 +27,13 @@ CustomLayerRenderParameters::CustomLayerRenderParameters(const mln::PaintParamet
     const ProjectionData projection = state.getProjectionData(UnwrappedTileID(0, 0, 0));
     globeProjectionMatrix = projection.mainMatrix;
     globeClippingPlane = projection.clippingPlane;
+
+#if MLN_RENDER_BACKEND_OPENGL
+    const auto range = paintParameters.depthModeFor3D().range;
+    depthRange3D = {range.min, range.max};
+#else
+    depthRange3D = {0.0, 1.0};
+#endif
 }
 
 } // namespace style

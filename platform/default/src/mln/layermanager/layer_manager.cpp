@@ -12,7 +12,6 @@
 #include <mln/layermanager/location_indicator_layer_factory.hpp>
 #include <mln/layermanager/raster_layer_factory.hpp>
 #include <mln/layermanager/symbol_layer_factory.hpp>
-#include <mln/layermanager/vehicle_model_layer_factory.hpp>
 #include <mln/util/logging.hpp>
 
 #include <map>
@@ -86,7 +85,6 @@ LayerManagerDefault::LayerManagerDefault() {
 #endif
 #if !defined(MBGL_LAYER_LOCATION_INDICATOR_DISABLE_ALL)
     addLayerType(std::make_unique<LocationIndicatorLayerFactory>());
-    addLayerType(std::make_unique<VehicleModelLayerFactory>());
 #endif
 }
 
