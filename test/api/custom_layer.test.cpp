@@ -198,4 +198,89 @@ TEST(CustomLayer, DrawableAfterCustomLayerUsesItsOwnProgram) {
     EXPECT_EQ(0u, differing) << "pixels that differ from the render whose custom layer restored the program";
 }
 
+// Draws nothing. It binds a framebuffer of its own with a small viewport, as a layer that renders to a texture first
+// does. With `restore` it puts back the framebuffer and the viewport it found; without, it leaves its own bound.
+class FramebufferLeakLayer : public mln::style::CustomLayerHost {
+public:
+    explicit FramebufferLeakLayer(bool restore_)
+        : restore(restore_) {}
+
+    void initialize(const mln::style::CustomLayerInitParameters&) override {
+        GLint foundFramebuffer = 0;
+        GLint foundTexture = 0;
+        MBGL_CHECK_ERROR(glGetIntegerv(GL_FRAMEBUFFER_BINDING, &foundFramebuffer));
+        MBGL_CHECK_ERROR(glGetIntegerv(GL_TEXTURE_BINDING_2D, &foundTexture));
+        MBGL_CHECK_ERROR(glGenTextures(1, &texture));
+        MBGL_CHECK_ERROR(glBindTexture(GL_TEXTURE_2D, texture));
+        MBGL_CHECK_ERROR(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 16, 16, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr));
+        MBGL_CHECK_ERROR(glGenFramebuffers(1, &framebuffer));
+        MBGL_CHECK_ERROR(glBindFramebuffer(GL_FRAMEBUFFER, framebuffer));
+        MBGL_CHECK_ERROR(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0));
+        EXPECT_EQ(static_cast<GLenum>(GL_FRAMEBUFFER_COMPLETE), glCheckFramebufferStatus(GL_FRAMEBUFFER));
+        // initialize() gets no reset afterwards: leave the context as it was.
+        MBGL_CHECK_ERROR(glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(foundFramebuffer)));
+        MBGL_CHECK_ERROR(glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(foundTexture)));
+    }
+
+    void render(const mln::style::CustomLayerRenderParameters&) override {
+        GLint foundFramebuffer = 0;
+        GLint foundViewport[4] = {};
+        MBGL_CHECK_ERROR(glGetIntegerv(GL_FRAMEBUFFER_BINDING, &foundFramebuffer));
+        MBGL_CHECK_ERROR(glGetIntegerv(GL_VIEWPORT, foundViewport));
+        MBGL_CHECK_ERROR(glBindFramebuffer(GL_FRAMEBUFFER, framebuffer));
+        MBGL_CHECK_ERROR(glViewport(0, 0, 16, 16));
+        if (restore) {
+            MBGL_CHECK_ERROR(glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(foundFramebuffer)));
+            MBGL_CHECK_ERROR(glViewport(foundViewport[0], foundViewport[1], foundViewport[2], foundViewport[3]));
+        }
+    }
+
+    void contextLost() override {}
+
+    void deinitialize() override {
+        MBGL_CHECK_ERROR(glDeleteFramebuffers(1, &framebuffer));
+        MBGL_CHECK_ERROR(glDeleteTextures(1, &texture));
+    }
+
+    const bool restore;
+    GLuint framebuffer = 0;
+    GLuint texture = 0;
+};
+
+// The renderer binds its own view again after a custom layer, "in case the layer changed the viewport or
+// framebuffer". That bind goes through the state cache, which still held the view's values, so it made no GL call and
+// the layers above the custom layer drew into the custom layer's framebuffer.
+TEST(CustomLayer, ViewIsBoundAgainAfterCustomLayer) {
+    if (gfx::Backend::GetType() != gfx::Backend::Type::OpenGL) {
+        return;
+    }
+
+    const auto render = [](bool restore) {
+        util::RunLoop loop;
+        HeadlessFrontend frontend{1};
+        Map map(frontend,
+                MapObserver::nullObserver(),
+                MapOptions().withMapMode(MapMode::Static).withSize(frontend.getSize()),
+                ResourceOptions().withCachePath(":memory:").withAssetPath("test/fixtures/api/assets"));
+        map.getStyle().loadJSON(util::read_file("test/fixtures/api/water.json"));
+        map.jumpTo(CameraOptions().withCenter(LatLng{37.8, -122.5}).withZoom(10.0));
+
+        auto water = map.getStyle().removeLayer("water");
+        map.getStyle().addLayer(
+            std::make_unique<CustomLayer>("custom", std::make_unique<FramebufferLeakLayer>(restore)));
+        map.getStyle().addLayer(std::move(water));
+
+        return frontend.render(map).image;
+    };
+
+    const auto expected = render(true);
+    const auto actual = render(false);
+    ASSERT_EQ(expected.size, actual.size);
+    std::size_t differing = 0;
+    for (std::size_t i = 0; i < actual.bytes(); i += 4) {
+        differing += !std::equal(actual.data.get() + i, actual.data.get() + i + 4, expected.data.get() + i);
+    }
+    EXPECT_EQ(0u, differing) << "pixels that differ from the render whose custom layer restored the view";
+}
+
 #endif

@@ -39,11 +39,12 @@ void DrawableCustomLayerHostTweaker::execute([[maybe_unused]] gfx::Drawable& dra
 
     host->render(parameters);
 
-    // Reset the view back to our original one, just in case the CustomLayer
-    // changed the viewport or Framebuffer.
+    // The host may have changed any state: forget the cached state first, so that binding the view below reaches
+    // the graphics API. Then reset the view back to our original one, in case the CustomLayer changed the viewport
+    // or framebuffer.
+    context.setDirtyState();
     paintParameters.backend.getDefaultRenderable().getResource<gfx::RenderableResource>().bind();
 
-    context.setDirtyState();
     context.bindGlobalUniformBuffers(*paintParameters.renderPass);
 }
 
