@@ -20,6 +20,7 @@
 #include <array>
 #include <functional>
 #include <map>
+#include <optional>
 #include <set>
 
 namespace mln {
@@ -83,10 +84,11 @@ public:
     /// its distance from the camera too) passed a whole zoom; for `lodBlendZooms` past that, fill and line layers draw
     /// the parent as well. Every pixel takes either level, never both, so a half transparent layer is never drawn
     /// twice: a dither, its share of the children growing from none to all with the zoom, so the change follows the
-    /// zoom and stops when it stops. A level not loaded yet leaves the other one whole and comes in over
-    /// `lodArrivalDuration` when it is.
+    /// zoom, and at least at the pace of `lodBlendDuration`, so it finishes where the camera stops too. A level not
+    /// loaded yet leaves the other one whole and comes in over that time when it is; a child given back to its parent
+    /// (a zoom out) goes over it too.
     static constexpr double lodBlendZooms = 0.5;
-    static constexpr Duration lodArrivalDuration = std::chrono::milliseconds(300);
+    static constexpr Duration lodBlendDuration = std::chrono::milliseconds(500);
     /// A child's share of the pixels is one of `lodShareSteps` + 1 values, so that a parent's `tile_fade` holds its
     /// four children's (one per quadrant of its extent, `lodShareBits` each) exactly in a float.
     static constexpr int lodShareBits = 6;
@@ -124,9 +126,8 @@ private:
     struct LodState {
         enum class Kind { Both, ParentOnly } kind;
         double shown = 1;
-        double from = 1;
-        TimePoint since;
     };
+    std::optional<TimePoint> lodUpdatedAt;
     std::map<UnwrappedTileID, LodState> lodStates;
     std::map<UnwrappedTileID, LodBlend> lodBlends;
     bool lodArriving = false;

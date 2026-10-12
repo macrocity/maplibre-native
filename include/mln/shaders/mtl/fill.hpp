@@ -213,7 +213,12 @@ half4 fragment fragmentMain(FragmentStage in [[stage_in]],
     const half opacity = in.opacity;
 #endif
 
-    return half(lodBlend(in.lod.z, in.position.xy, in.lod.xy)) * half4(color * opacity);
+    // the blend between two levels of detail (TilePyramid::lodBlend): a pixel of the other level is left
+    // whole, colour and depth (the two levels' depths differ by a hair in a tilted view, and fought)
+    if (lodBlend(in.lod.z, in.position.xy, in.lod.xy) < 0.5) {
+        discard_fragment();
+    }
+    return half4(color * opacity);
 }
 )";
 };
@@ -295,7 +300,12 @@ half4 fragment fragmentMain(FragmentStage in [[stage_in]],
     const half opacity = in.opacity;
 #endif
 
-    return half(lodBlend(in.lod.z, in.position.xy, in.lod.xy)) * half4(color * opacity);
+    // the blend between two levels of detail (TilePyramid::lodBlend): a pixel of the other level is left
+    // whole, colour and depth (the two levels' depths differ by a hair in a tilted view, and fought)
+    if (lodBlend(in.lod.z, in.position.xy, in.lod.xy) < 0.5) {
+        discard_fragment();
+    }
+    return half4(color * opacity);
 }
 )";
 };
@@ -441,7 +451,12 @@ half4 fragment fragmentMain(FragmentStage in [[stage_in]],
     const float2 pos2 = mix(pattern_tl_b / tileProps.texsize, pattern_br_b / tileProps.texsize, imagecoord_b);
     const float4 color2 = image0.sample(image0_sampler, pos2);
 
-    return half(lodBlend(tileProps.tile_fade, in.position.xy, in.lod_pos)) * half4(mix(color1, color2, props.fade) * opacity);
+    // the blend between two levels of detail (TilePyramid::lodBlend): a pixel of the other level is left
+    // whole, colour and depth (the two levels' depths differ by a hair in a tilted view, and fought)
+    if (lodBlend(tileProps.tile_fade, in.position.xy, in.lod_pos) < 0.5) {
+        discard_fragment();
+    }
+    return half4(mix(color1, color2, props.fade) * opacity);
 }
 )";
 };
@@ -599,7 +614,12 @@ half4 fragment fragmentMain(FragmentStage in [[stage_in]],
     //float dist = length(in.v_pos - in.position.xy);
     //float alpha = 1.0 - smoothstep(0.0, 1.0, dist);
 
-    return half(lodBlend(tileProps.tile_fade, in.position.xy, in.lod_pos)) * half4(mix(color1, color2, props.fade) * opacity);
+    // the blend between two levels of detail (TilePyramid::lodBlend): a pixel of the other level is left
+    // whole, colour and depth (the two levels' depths differ by a hair in a tilted view, and fought)
+    if (lodBlend(tileProps.tile_fade, in.position.xy, in.lod_pos) < 0.5) {
+        discard_fragment();
+    }
+    return half4(mix(color1, color2, props.fade) * opacity);
 }
 )";
 };
@@ -685,7 +705,12 @@ half4 fragment fragmentMain(FragmentStage in [[stage_in]],
     const float blur2 = (1.0 / DEVICE_PIXEL_RATIO) * in.gamma_scale;
     const float alpha = clamp(min(dist + blur2, in.width2 - dist) / blur2, 0.0, 1.0);
 
-    return half(lodBlend(in.lod.z, in.position.xy, in.lod.xy)) * half4(props.outline_color * (alpha * props.opacity));
+    // the blend between two levels of detail (TilePyramid::lodBlend): a pixel of the other level is left
+    // whole, colour and depth (the two levels' depths differ by a hair in a tilted view, and fought)
+    if (lodBlend(in.lod.z, in.position.xy, in.lod.xy) < 0.5) {
+        discard_fragment();
+    }
+    return half4(props.outline_color * (alpha * props.opacity));
 }
 )";
 };

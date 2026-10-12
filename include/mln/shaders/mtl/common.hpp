@@ -242,14 +242,18 @@ static_assert(sizeof(ProjectionUBO) == 11 * 16, "wrong size");
 #define GLOBE_POLE_SOUTH_Y 32766.5
 
 // The blend between two levels of detail (TilePyramid::lodBlend): whether a fill or line fragment of a tile is drawn.
-// A tile takes the pixels whose dither value is below its share (`fade`, 1 for all of them); a parent drawn under its
+// A tile takes the pixels whose dither value (white noise per pixel) is below its share (`fade`, 1 for all of them); a parent drawn under its
 // children (`fade` < 0, -1 less its children's shares, 6 bits per quadrant of its extent) takes the others, and none
 // outside its own extent. The dither depends on the pixel alone, so every layer of a pixel takes the same level.
 inline float lodBlend(float fade, float2 fragCoord, float2 tilePos) {
     if (fade >= 1.0) {
         return 1.0;
     }
-    const float dither = fract(52.9829189 * fract(dot(fragCoord, float2(0.06711056, 0.00583715))));
+    // white noise from the pixel's integer position (a hash): no rows or diagonals for the eye to pick out
+    uint h = uint(fragCoord.x) * 1973u + uint(fragCoord.y) * 9277u;
+    h = (h << 13u) ^ h;
+    h = h * (h * h * 15731u + 789221u) + 1376312589u;
+    const float dither = float(h & 0xffffu) / 65536.0;
     if (fade >= 0.0) {
         return dither < fade ? 1.0 : 0.0;
     }

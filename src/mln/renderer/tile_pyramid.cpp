@@ -480,6 +480,11 @@ void TilePyramid::updateLodBlends(const TileParameters& parameters,
         return;
     }
     const TimePoint now = Clock::now();
+    // how far a blend goes by itself this frame (`lodBlendDuration`)
+    const double step = lodUpdatedAt ? std::clamp(std::chrono::duration<double>(now - *lodUpdatedAt).count(), 0.0, 0.1) /
+                                           std::chrono::duration<double>(lodBlendDuration).count()
+                                     : 0.0;
+    lodUpdatedAt = now;
     const auto smooth = [](double t) {
         t = std::clamp(t, 0.0, 1.0);
         return t * t * (3 - 2 * t);
@@ -525,36 +530,31 @@ void TilePyramid::updateLodBlends(const TileParameters& parameters,
         const auto previous = lodStates.find(child);
 
         LodState::Kind kind;
-        double target;
+        double shown;
         if (ready && (blending || previous != lodStates.end())) {
+            // With the zoom, and at least at the pace of `lodBlendDuration`, so it finishes where the camera stops
+            // too: the tilted view's far tiles change level with their distance, and a dither left half done there
+            // stayed on the screen.
             kind = LodState::Kind::Both;
-            target = smooth(past / lodBlendZooms);
+            const double target = smooth(past / lodBlendZooms);
+            const double before = previous == lodStates.end() ? target
+                                  : previous->second.kind == LodState::Kind::ParentOnly ? 0.0
+                                                                                       : previous->second.shown;
+            shown = std::min(1.0, std::max(target, before + step));
         } else if (!ready && !covered(child)) {
             // still loading, and no finer stand-in for it: the parent draws its place whole until it comes
             kind = LodState::Kind::ParentOnly;
-            target = 0;
+            shown = 0;
         } else {
             continue;
         }
-        LodState state = previous != lodStates.end()
-                             ? previous->second
-                             : LodState{.kind = kind, .shown = target, .from = target, .since = now - lodArrivalDuration};
-        if (state.kind != kind) {
-            // a level that has just loaded comes in from what was drawn; one that is gone goes at once
-            state.from = kind == LodState::Kind::ParentOnly ? 0.0 : state.shown;
-            state.since = kind == LodState::Kind::ParentOnly ? now - lodArrivalDuration : now;
-            state.kind = kind;
-        }
-        const double arrived = smooth(std::chrono::duration<double>(now - state.since).count() /
-                                      std::chrono::duration<double>(lodArrivalDuration).count());
-        state.shown = state.from + (target - state.from) * arrived;
-        if (arrived < 1) lodArriving = true;
-        // the child whole and nothing left to bring in: its blend is over
-        if (state.shown >= 1 && arrived >= 1) continue;
-        states.emplace(child, state);
+        if (shown < 1) lodArriving = true;
+        // the child whole and the blend's zooms passed: its blend is over
+        if (shown >= 1 && !blending) continue;
+        states.emplace(child, LodState{.kind = kind, .shown = shown});
 
         // the share of the pixels the child draws, in steps the parent can tell apart per quadrant
-        const int share = static_cast<int>(std::lround(std::clamp(state.shown, 0.0, 1.0) * lodShareSteps));
+        const int share = static_cast<int>(std::lround(std::clamp(shown, 0.0, 1.0) * lodShareSteps));
         if (share >= lodShareSteps) continue;
         Parent& entry = parents[parentID];
         entry.tile = parent;
@@ -564,6 +564,34 @@ void TilePyramid::updateLodBlends(const TileParameters& parameters,
         } else {
             lodBlends[child].fade = static_cast<float>(share) / lodShareSteps;
         }
+    }
+
+    // A child the cover gave back to its parent (a zoom out past the whole zoom) goes over `lodBlendDuration` from
+    // what it showed, drawn over the parent, instead of at once.
+    for (const auto& [child, before] : lodStates) {
+        if (states.count(child) || before.kind != LodState::Kind::Both || before.shown <= 0) continue;
+        const double shown = before.shown - step;
+        if (shown <= 0) continue;
+        const UnwrappedTileID parentID(child.wrap,
+                                       CanonicalTileID(child.canonical.z - 1, child.canonical.x >> 1, child.canonical.y >> 1));
+        const auto cover = renderedTiles.find(parentID);
+        Tile* tile = getTile(OverscaledTileID(child.canonical.z, child.wrap, child.canonical));
+        if (cover == renderedTiles.end() || !cover->second.get().isRenderable() || !tile || !tile->isRenderable() ||
+            renderedTiles.count(child)) {
+            continue;
+        }
+        retainTile(*tile, TileNecessity::Required);
+        lodArriving = true;
+        states.emplace(child, LodState{.kind = LodState::Kind::Both, .shown = shown});
+        const int share = static_cast<int>(std::lround(shown * lodShareSteps));
+        if (share <= 0) continue;
+        Parent& entry = parents[parentID];
+        entry.tile = &cover->second.get();
+        entry.share[(child.canonical.x & 1) + 2 * (child.canonical.y & 1)] = share;
+        LodBlend& blend = lodBlends[child];
+        blend.fade = static_cast<float>(share) / lodShareSteps;
+        blend.extra = true;
+        addRenderTile(child, *tile);
     }
     lodStates = std::move(states);
 

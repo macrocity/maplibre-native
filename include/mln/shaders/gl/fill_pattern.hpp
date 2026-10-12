@@ -168,7 +168,11 @@ mediump vec4 pattern_to = u_pattern_to;
 
     fragColor = mix(color1, color2, u_fade) * opacity;
 
-    fragColor *= lod_blend(u_tile_fade, gl_FragCoord.xy, v_lod_pos);
+    // the blend between two levels of detail (TilePyramid::lodBlend): a pixel of the other level is left
+    // whole, colour and depth (the two levels' depths differ by a hair in a tilted view, and fought)
+    if (lod_blend(u_tile_fade, gl_FragCoord.xy, v_lod_pos) < 0.5) {
+        discard;
+    }
 
 #ifdef OVERDRAW_INSPECTOR
     fragColor = vec4(1.0);
