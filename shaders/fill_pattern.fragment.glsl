@@ -2,7 +2,7 @@ layout (std140) uniform FillPatternTilePropsUBO {
     highp vec4 u_pattern_from;
     highp vec4 u_pattern_to;
     highp vec2 u_texsize;
-    highp float u_tile_fade;
+    lowp float tileprops_pad1;
     lowp float tileprops_pad2;
 };
 
@@ -23,8 +23,6 @@ in vec2 v_pos_b;
 #pragma mapbox: define lowp float opacity
 #pragma mapbox: define lowp vec4 pattern_from
 #pragma mapbox: define lowp vec4 pattern_to
-
-in highp vec2 v_lod_pos;
 
 void main() {
     #pragma mapbox: initialize lowp float opacity
@@ -49,12 +47,6 @@ void main() {
     vec4 color2 = texture(u_image, pos2);
 
     fragColor = mix(color1, color2, u_fade) * opacity;
-
-    // the blend between two levels of detail (TilePyramid::lodBlend): a pixel of the other level is left
-    // whole, colour and depth (the two levels' depths differ by a hair in a tilted view, and fought)
-    if (lod_blend(u_tile_fade, gl_FragCoord.xy, v_lod_pos) < 0.5) {
-        discard;
-    }
 
 #ifdef OVERDRAW_INSPECTOR
     fragColor = vec4(1.0);

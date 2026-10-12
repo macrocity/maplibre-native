@@ -1,5 +1,4 @@
 #include <mln/renderer/render_orchestrator.hpp>
-#include <mln/renderer/tile_pyramid.hpp>
 
 #include <mln/annotation/annotation_manager.hpp>
 #include <mln/layermanager/layer_manager.hpp>
@@ -369,16 +368,6 @@ std::unique_ptr<RenderTree> RenderOrchestrator::createRenderTree(
     // Track which layers are flagged for rendering
     std::vector<bool> updateList(orderedLayers.size());
 
-    // Within a blend between two levels of detail (TilePyramid::lodBlend) the parents drawn under their children show
-    // the map as it was just before the whole zoom the cover passed: a fill or line layer that ended there goes on
-    // drawing them. The style's pairs of layers that hand over at a whole zoom (minor roads from z10 to 12, then from
-    // 12 on) otherwise lost the first at once, while the second came in with the children.
-    const double zoomPast = zoomHistory.lastZoom - std::floor(zoomHistory.lastZoom);
-    const std::optional<float> zoomBefore =
-        isMapModeContinuous && zoomPast < TilePyramid::lodBlendZooms
-            ? std::optional<float>(static_cast<float>(std::floor(zoomHistory.lastZoom)) - 1e-3f)
-            : std::nullopt;
-
     // Update all sources and initialize renderItems.
     for (const auto& sourceImpl : *sourceImpls) {
         MLN_TRACE_ZONE(update source);
@@ -392,10 +381,7 @@ std::unique_ptr<RenderTree> RenderOrchestrator::createRenderTree(
             RenderLayer& layer = orderedLayers[index];
             const auto* layerInfo = layer.baseImpl->getTypeInfo();
             const bool layerIsVisible = layer.baseImpl->visibility != style::VisibilityType::None;
-            const bool lodParentsOnly = !layer.supportsZoom(zoomHistory.lastZoom) && zoomBefore &&
-                                        layer.fadesTileGeometry() && layer.supportsZoom(*zoomBefore);
-            const bool zoomFitsLayer = layer.supportsZoom(zoomHistory.lastZoom) || lodParentsOnly;
-            layer.setLodParentsOnly(lodParentsOnly);
+            const bool zoomFitsLayer = layer.supportsZoom(zoomHistory.lastZoom);
             renderTreeParameters->has3D |= (layerInfo->pass3d == LayerTypeInfo::Pass3D::Required);
 
             if (layerInfo->source != LayerTypeInfo::Source::NotRequired) {

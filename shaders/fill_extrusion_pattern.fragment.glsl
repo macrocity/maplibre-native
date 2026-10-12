@@ -33,14 +33,7 @@ uniform sampler2D u_image;
 #pragma mapbox: define mediump vec4 pattern_from
 #pragma mapbox: define mediump vec4 pattern_to
 
-in highp vec3 v_lod;
-
 void main() {
-    // the blend between two levels of detail (TilePyramid::lodBlend): a building of the level this pixel does not
-    // take writes neither colour nor depth
-    if (lod_blend(v_lod.z, gl_FragCoord.xy, v_lod.xy) < 0.5) {
-        discard;
-    }
     #pragma mapbox: initialize lowp float base
     #pragma mapbox: initialize lowp float height
     #pragma mapbox: initialize mediump vec4 pattern_from

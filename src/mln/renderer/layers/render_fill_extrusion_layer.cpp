@@ -255,7 +255,7 @@ void RenderFillExtrusionLayer::update(gfx::ShaderRegistry& shaders,
         return;
     }
 
-    tileLayerGroup->setStencilTiles(clippedRenderTiles());
+    tileLayerGroup->setStencilTiles(renderTiles);
 
 #if MLN_USE_FILL_EXTRUSION_INSTANCING
     if (!fillExtrusionInstancedGroup) {
@@ -589,7 +589,6 @@ void RenderFillExtrusionLayer::update(gfx::ShaderRegistry& shaders,
         finishInstance(*instancedColorBuilder);
 #endif
     }
-    applyTileFades(*tileLayerGroup);
 }
 
 } // namespace mln
