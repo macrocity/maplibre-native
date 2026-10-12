@@ -15,6 +15,7 @@
 #include <mln/util/io.hpp>
 #include <mln/util/mat4.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <mln/util/run_loop.hpp>
 
@@ -128,6 +129,73 @@ TEST(CustomLayer, Basic) {
     map.getStyle().addLayer(std::move(layer));
 
     test::checkImage("test/fixtures/custom_layer/basic", frontend.render(map).image, 0.0006, 0.1);
+}
+
+// Binds a program of its own and draws the same triangle as TestLayer. With `restoreProgram` it puts back the
+// program it found, as a careful host does; without, it leaves its own program bound.
+class ProgramLeakLayer : public TestLayer {
+public:
+    explicit ProgramLeakLayer(bool restoreProgram_)
+        : restoreProgram(restoreProgram_) {}
+
+    void render(const mln::style::CustomLayerRenderParameters&) override {
+        GLint found = 0;
+        MBGL_CHECK_ERROR(glGetIntegerv(GL_CURRENT_PROGRAM, &found));
+        MBGL_CHECK_ERROR(glUseProgram(program));
+        MBGL_CHECK_ERROR(glBindBuffer(GL_ARRAY_BUFFER, buffer));
+        MBGL_CHECK_ERROR(glEnableVertexAttribArray(a_pos));
+        MBGL_CHECK_ERROR(glVertexAttribPointer(a_pos, 2, GL_FLOAT, GL_FALSE, 0, nullptr));
+        MBGL_CHECK_ERROR(glDrawArrays(GL_TRIANGLE_STRIP, 0, 3));
+        MBGL_CHECK_ERROR(glDisableVertexAttribArray(a_pos));
+        if (restoreProgram) {
+            MBGL_CHECK_ERROR(glUseProgram(static_cast<GLuint>(found)));
+        }
+    }
+
+    const bool restoreProgram;
+};
+
+// A custom layer may leave any program bound. The layer after it must still draw with its own program, also when that
+// program is the one the drawable before the custom layer used: the renderer's cached program is stale, only marked
+// dirty. Both fill layers share one fill program (no outline, constant colour), so the water layer's first drawable
+// needs exactly the program the landcover layer's last drawable used.
+TEST(CustomLayer, DrawableAfterCustomLayerUsesItsOwnProgram) {
+    if (gfx::Backend::GetType() != gfx::Backend::Type::OpenGL) {
+        return;
+    }
+
+    const auto render = [](bool restoreProgram) {
+        util::RunLoop loop;
+        HeadlessFrontend frontend{1};
+        Map map(frontend,
+                MapObserver::nullObserver(),
+                MapOptions().withMapMode(MapMode::Static).withSize(frontend.getSize()),
+                ResourceOptions().withCachePath(":memory:").withAssetPath("test/fixtures/api/assets"));
+        map.getStyle().loadJSON(util::read_file("test/fixtures/api/water.json"));
+        map.jumpTo(CameraOptions().withCenter(LatLng{37.8, -122.5}).withZoom(10.0));
+
+        auto water = map.getStyle().removeLayer("water");
+        auto landcover = std::make_unique<FillLayer>("landcover", "mapbox");
+        landcover->setSourceLayer("landcover");
+        landcover->setFillColor(Color{1.0, 1.0, 0.0, 1.0});
+        landcover->setFillAntialias(false);
+        map.getStyle().addLayer(std::move(landcover));
+        map.getStyle().addLayer(
+            std::make_unique<CustomLayer>("custom", std::make_unique<ProgramLeakLayer>(restoreProgram)));
+        static_cast<FillLayer&>(*water).setFillAntialias(false);
+        map.getStyle().addLayer(std::move(water));
+
+        return frontend.render(map).image;
+    };
+
+    const auto expected = render(true);
+    const auto actual = render(false);
+    ASSERT_EQ(expected.size, actual.size);
+    std::size_t differing = 0;
+    for (std::size_t i = 0; i < actual.bytes(); i += 4) {
+        differing += !std::equal(actual.data.get() + i, actual.data.get() + i + 4, expected.data.get() + i);
+    }
+    EXPECT_EQ(0u, differing) << "pixels that differ from the render whose custom layer restored the program";
 }
 
 #endif
