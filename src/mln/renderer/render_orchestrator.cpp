@@ -505,10 +505,21 @@ std::unique_ptr<RenderTree> RenderOrchestrator::createRenderTree(
             placementUpdatePeriodOverride = std::optional<Duration>(Milliseconds(30));
         }
 
-        renderTreeParameters->placementChanged = !placementController.placementIsRecent(
-            updateParameters->timePoint,
-            static_cast<float>(updateParameters->transformState.getZoom()),
-            placementUpdatePeriodOverride);
+        // The view as the placement sees it: the projection with the camera, the viewport and the globe's share.
+        std::array<double, 16> view{};
+        {
+            mat4 projection;
+            updateParameters->transformState.getProjMatrix(projection);
+            std::copy(projection.begin(), projection.end(), view.begin());
+        }
+        symbolsChangedSincePlacement = symbolsChangedSincePlacement || symbolBucketsChanged;
+        const bool placementInputsChanged = symbolsChangedSincePlacement || view != placedView ||
+                                            usedSymbolLayers != placedLayers;
+        renderTreeParameters->placementChanged = placementInputsChanged &&
+                                                 !placementController.placementIsRecent(
+                                                     updateParameters->timePoint,
+                                                     static_cast<float>(updateParameters->transformState.getZoom()),
+                                                     placementUpdatePeriodOverride);
         symbolBucketsChanged |= renderTreeParameters->placementChanged;
         if (renderTreeParameters->placementChanged) {
             Mutable<Placement> placement = Placement::create(updateParameters, placementController.getPlacement());
@@ -518,7 +529,10 @@ std::unique_ptr<RenderTree> RenderOrchestrator::createRenderTree(
             for (const auto& entry : renderSources) {
                 entry.second->updateFadingTiles();
             }
-        } else {
+            placedView = view;
+            placedLayers = usedSymbolLayers;
+            symbolsChangedSincePlacement = false;
+        } else if (placementInputsChanged) {
             placementController.setPlacementStale();
         }
         renderTreeParameters->symbolFadeChange = placementController.getPlacement()->symbolFadeChange(
