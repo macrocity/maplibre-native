@@ -350,11 +350,76 @@ constexpr double SLOWING_RADIUS_START = 0.9;
 constexpr double SLOWING_RADIUS_STOP = 0.5;
 constexpr double SLOWING_RADIUS_SLOW_FACTOR = 0.25;
 
+// A turn about the anchor: the arc from the center to the place under it, in degrees, over which the center stops
+// following. At 45 degrees a turn about the place already tips the planet as much as it turns it on the screen.
+constexpr double TURN_HOLD_ARC_START = 15.0;
+constexpr double TURN_HOLD_ARC_END = 45.0;
+// The bearing is counted from north, and a pole is north of everything: seen from a center farther from the place
+// under the anchor than that place is from its pole, the place cannot be at every bearing, and short of that a degree
+// of turn already moves the center by many degrees. The ratio is sin(arc) / sin(the place's arc from the pole).
+constexpr double TURN_HOLD_POLE_START = 0.3;
+constexpr double TURN_HOLD_POLE_END = 0.7;
+
 double remapSaturate(double value, double oldMin, double oldMax, double newMin, double newMax) {
     const double t = std::clamp((value - oldMin) / (oldMax - oldMin), 0.0, 1.0);
     return newMin + (newMax - newMin) * t;
 }
+
+// How near the anchor's ray passes to the center of the planet, in radii: 1 on the horizon, more off the planet.
+double rayDistanceFromGlobeCenter(const TransformState& state, const ScreenCoordinate& anchor) {
+    const vec3 rayOrigin = state.getGlobeCameraPosition();
+    const vec3 rayDirection = rayDirectionFromPixel(state, anchor, state.getInverseGlobeViewProjectionMatrix());
+    const vec3 closestPoint = add(rayOrigin, scaled(rayDirection, -dot(rayOrigin, rayDirection)));
+    return length(closestPoint);
+}
 } // namespace
+
+double VerticalPerspectiveProjection::anchorHold(const TransformState& state,
+                                                 const ScreenCoordinate& anchor,
+                                                 const LatLng& location) {
+    const LatLng center = state.getLatLng(LatLng::Unwrapped);
+    const double arc = util::rad2deg(
+        std::acos(std::clamp(dot(surfaceVector(center), surfaceVector(location)), -1.0, 1.0)));
+    const double arcHold = remapSaturate(arc, TURN_HOLD_ARC_START, TURN_HOLD_ARC_END, 1.0, 0.0);
+    const double fromPole = std::cos(util::deg2rad(location.latitude()));
+    const double poleHold = fromPole > 1e-9 ? remapSaturate(std::sin(util::deg2rad(arc)) / fromPole,
+                                                            TURN_HOLD_POLE_START,
+                                                            TURN_HOLD_POLE_END,
+                                                            1.0,
+                                                            0.0)
+                                            : 0.0;
+    const double longitudeHold = remapSaturate(
+        std::abs(differenceOfAnglesDegrees(center.longitude(), location.longitude())),
+        INTERPOLATE_TO_HEURISTIC_START_LNG,
+        INTERPOLATE_TO_HEURISTIC_END_LNG,
+        1.0,
+        0.0);
+    const double horizonHold = remapSaturate(rayDistanceFromGlobeCenter(state, anchor),
+                                             INTERPOLATE_TO_HEURISTIC_START_HORIZON,
+                                             INTERPOLATE_TO_HEURISTIC_END_HORIZON,
+                                             1.0,
+                                             0.0);
+    return arcHold * poleHold * longitudeHold * horizonHold;
+}
+
+void VerticalPerspectiveProjection::turnAroundPoint(TransformState& state,
+                                                    const ScreenCoordinate& anchor,
+                                                    const LatLng& location) {
+    const double hold = anchorHold(state, anchor, location);
+    if (hold <= 0.0) {
+        return;
+    }
+    const auto exactCenter = centerForLocationAtPoint(state, location, anchor);
+    if (!exactCenter) {
+        return;
+    }
+    const LatLng center = state.getLatLng(LatLng::Unwrapped);
+    const LatLng target{
+        center.latitude() + differenceOfAnglesDegrees(center.latitude(), exactCenter->latitude()) * hold,
+        center.longitude() + differenceOfAnglesDegrees(center.longitude(), exactCenter->longitude()) * hold};
+    const LatLng constrained = state.constrainedCenter(target);
+    state.setLatLngZoom(constrained, state.getZoom() + zoomAdjustment(center.latitude(), constrained.latitude()));
+}
 
 void VerticalPerspectiveProjection::zoomAroundPoint(TransformState& state,
                                                     const ScreenCoordinate& anchor,
@@ -369,13 +434,10 @@ void VerticalPerspectiveProjection::zoomAroundPoint(TransformState& state,
     const double dLat = differenceOfAnglesDegrees(center.latitude(), zoomLocation.latitude());
 
     // Slow the movement down when the anchor's ray passes far from the planet.
-    const vec3 rayOrigin = state.getGlobeCameraPosition();
-    const vec3 rayDirection = rayDirectionFromPixel(state, anchor, state.getInverseGlobeViewProjectionMatrix());
-    const vec3 closestPoint = add(rayOrigin, scaled(rayDirection, -dot(rayOrigin, rayDirection)));
-    const double rayDistanceFromGlobeCenter = length(closestPoint);
+    const double rayDistance = rayDistanceFromGlobeCenter(state, anchor);
     const double distanceFactor = std::exp(
-        -std::max(rayDistanceFromGlobeCenter - 1.0 - RAY_SURFACE_DISTANCE_FOR_SLOWING_START, 0.0) * SLOWING_MULTIPLIER);
-    const double interpolationFactorHorizon = remapSaturate(rayDistanceFromGlobeCenter,
+        -std::max(rayDistance - 1.0 - RAY_SURFACE_DISTANCE_FOR_SLOWING_START, 0.0) * SLOWING_MULTIPLIER);
+    const double interpolationFactorHorizon = remapSaturate(rayDistance,
                                                             INTERPOLATE_TO_HEURISTIC_START_HORIZON,
                                                             INTERPOLATE_TO_HEURISTIC_END_HORIZON,
                                                             0.0,

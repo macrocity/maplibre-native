@@ -25,7 +25,7 @@ struct alignas(16) FillDrawableUBO {
     // Interpolations
     /* 64 */ float color_t;
     /* 68 */ float opacity_t;
-    /* 72 */ float tile_fade;
+    /* 72 */ float pad1;
     /* 76 */ float pad2;
     /* 80 */
 };
@@ -40,7 +40,7 @@ struct alignas(16) FillOutlineDrawableUBO {
     // Interpolations
     /* 64 */ float outline_color_t;
     /* 68 */ float opacity_t;
-    /* 72 */ float tile_fade;
+    /* 72 */ float pad1;
     /* 76 */ float pad2;
     /* 80 */
 };
@@ -67,7 +67,7 @@ struct alignas(16) FillPatternTilePropsUBO {
     /*  0 */ float4 pattern_from;
     /* 16 */ float4 pattern_to;
     /* 32 */ float2 texsize;
-    /* 40 */ float tile_fade;
+    /* 40 */ float pad1;
     /* 44 */ float pad2;
     /* 48 */
 };
@@ -94,7 +94,7 @@ struct alignas(16) FillOutlinePatternTilePropsUBO {
     /*  0 */ float4 pattern_from;
     /* 16 */ float4 pattern_to;
     /* 32 */ float2 texsize;
-    /* 40 */ float tile_fade;
+    /* 40 */ float pad1;
     /* 44 */ float pad2;
     /* 48 */
 };
@@ -106,7 +106,7 @@ static_assert(sizeof(FillOutlinePatternTilePropsUBO) == 3 * 16, "wrong size");
 struct alignas(16) FillOutlineTriangulatedDrawableUBO {
     /*  0 */ float4x4 matrix;
     /* 64 */ float ratio;
-    /* 68 */ float tile_fade;
+    /* 68 */ float pad1;
     /* 72 */ float pad2;
     /* 76 */ float pad3;
     /* 80 */
@@ -173,7 +173,6 @@ struct FragmentStage {
 #if !defined(HAS_UNIFORM_u_opacity)
     half opacity;
 #endif
-    float3 lod;
 };
 
 FragmentStage vertex vertexMain(thread const VertexStage vertx [[stage_in]],
@@ -191,7 +190,6 @@ FragmentStage vertex vertexMain(thread const VertexStage vertx [[stage_in]],
 #if !defined(HAS_UNIFORM_u_opacity)
         .opacity  = half(unpack_mix_float(vertx.opacity, drawable.opacity_t)),
 #endif
-        .lod = float3(float2(vertx.position), drawable.tile_fade),
     };
 }
 
@@ -213,11 +211,6 @@ half4 fragment fragmentMain(FragmentStage in [[stage_in]],
     const half opacity = in.opacity;
 #endif
 
-    // the blend between two levels of detail (TilePyramid::lodBlend): a pixel of the other level is left
-    // whole, colour and depth (the two levels' depths differ by a hair in a tilted view, and fought)
-    if (lodBlend(in.lod.z, in.position.xy, in.lod.xy) < 0.5) {
-        discard_fragment();
-    }
     return half4(color * opacity);
 }
 )";
@@ -251,7 +244,6 @@ struct FragmentStage {
 #if !defined(HAS_UNIFORM_u_opacity)
     half opacity;
 #endif
-    float3 lod;
 };
 
 FragmentStage vertex vertexMain(thread const VertexStage vertx [[stage_in]],
@@ -272,7 +264,6 @@ FragmentStage vertex vertexMain(thread const VertexStage vertx [[stage_in]],
 #if !defined(HAS_UNIFORM_u_opacity)
         .opacity        = half(unpack_mix_float(vertx.opacity, drawable.opacity_t)),
 #endif
-        .lod = float3(float2(vertx.position), drawable.tile_fade),
     };
 }
 
@@ -300,11 +291,6 @@ half4 fragment fragmentMain(FragmentStage in [[stage_in]],
     const half opacity = in.opacity;
 #endif
 
-    // the blend between two levels of detail (TilePyramid::lodBlend): a pixel of the other level is left
-    // whole, colour and depth (the two levels' depths differ by a hair in a tilted view, and fought)
-    if (lodBlend(in.lod.z, in.position.xy, in.lod.xy) < 0.5) {
-        discard_fragment();
-    }
     return half4(color * opacity);
 }
 )";
@@ -351,7 +337,6 @@ struct FragmentStage {
 #if !defined(HAS_UNIFORM_u_opacity)
     half opacity;
 #endif
-    float2 lod_pos;
 };
 
 FragmentStage vertex vertexMain(thread const VertexStage vertx [[stage_in]],
@@ -404,7 +389,6 @@ FragmentStage vertex vertexMain(thread const VertexStage vertx [[stage_in]],
 #if !defined(HAS_UNIFORM_u_opacity)
         .opacity        = half(unpack_mix_float(vertx.opacity, drawable.opacity_t)),
 #endif
-        .lod_pos        = postion,
     };
 }
 
@@ -451,11 +435,6 @@ half4 fragment fragmentMain(FragmentStage in [[stage_in]],
     const float2 pos2 = mix(pattern_tl_b / tileProps.texsize, pattern_br_b / tileProps.texsize, imagecoord_b);
     const float4 color2 = image0.sample(image0_sampler, pos2);
 
-    // the blend between two levels of detail (TilePyramid::lodBlend): a pixel of the other level is left
-    // whole, colour and depth (the two levels' depths differ by a hair in a tilted view, and fought)
-    if (lodBlend(tileProps.tile_fade, in.position.xy, in.lod_pos) < 0.5) {
-        discard_fragment();
-    }
     return half4(mix(color1, color2, props.fade) * opacity);
 }
 )";
@@ -503,7 +482,6 @@ struct FragmentStage {
 #if !defined(HAS_UNIFORM_u_opacity)
     half opacity;
 #endif
-    float2 lod_pos;
 };
 
 FragmentStage vertex vertexMain(thread const VertexStage vertx [[stage_in]],
@@ -563,7 +541,6 @@ FragmentStage vertex vertexMain(thread const VertexStage vertx [[stage_in]],
 #if !defined(HAS_UNIFORM_u_opacity)
         .opacity        = half(opacity),
 #endif
-        .lod_pos        = pos2,
     };
 }
 
@@ -614,11 +591,6 @@ half4 fragment fragmentMain(FragmentStage in [[stage_in]],
     //float dist = length(in.v_pos - in.position.xy);
     //float alpha = 1.0 - smoothstep(0.0, 1.0, dist);
 
-    // the blend between two levels of detail (TilePyramid::lodBlend): a pixel of the other level is left
-    // whole, colour and depth (the two levels' depths differ by a hair in a tilted view, and fought)
-    if (lodBlend(tileProps.tile_fade, in.position.xy, in.lod_pos) < 0.5) {
-        discard_fragment();
-    }
     return half4(mix(color1, color2, props.fade) * opacity);
 }
 )";
@@ -647,7 +619,6 @@ struct FragmentStage {
     float width2;
     float2 normal;
     half gamma_scale;
-    float3 lod;
 };
 
 FragmentStage vertex vertexMain(thread const VertexStage vertx [[stage_in]],
@@ -690,7 +661,6 @@ FragmentStage vertex vertexMain(thread const VertexStage vertx [[stage_in]],
         .width2      = outset,
         .normal      = v_normal,
         .gamma_scale = half(extrude_length_without_perspective / extrude_length_with_perspective),
-        .lod = float3(pos + dist / drawable.ratio, drawable.tile_fade),
     };
 }
 
@@ -705,11 +675,6 @@ half4 fragment fragmentMain(FragmentStage in [[stage_in]],
     const float blur2 = (1.0 / DEVICE_PIXEL_RATIO) * in.gamma_scale;
     const float alpha = clamp(min(dist + blur2, in.width2 - dist) / blur2, 0.0, 1.0);
 
-    // the blend between two levels of detail (TilePyramid::lodBlend): a pixel of the other level is left
-    // whole, colour and depth (the two levels' depths differ by a hair in a tilted view, and fought)
-    if (lodBlend(in.lod.z, in.position.xy, in.lod.xy) < 0.5) {
-        discard_fragment();
-    }
     return half4(props.outline_color * (alpha * props.opacity));
 }
 )";

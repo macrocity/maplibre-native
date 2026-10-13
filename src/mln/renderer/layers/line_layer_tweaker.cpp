@@ -257,7 +257,7 @@ void LineLayerTweaker::execute(LayerGroupBase& layerGroup, const PaintParameters
                     .gapwidth_t = std::get<0>(binders->get<LineGapWidth>()->interpolationFactor(zoom)),
                     .offset_t = std::get<0>(binders->get<LineOffset>()->interpolationFactor(zoom)),
                     .width_t = std::get<0>(binders->get<LineWidth>()->interpolationFactor(zoom)),
-                    .tile_fade = drawable.getTileFade()
+                    .pad1 = 0
                 };
 
 #if !MLN_UBO_CONSOLIDATION
@@ -280,7 +280,7 @@ void LineLayerTweaker::execute(LayerGroupBase& layerGroup, const PaintParameters
                     .gapwidth_t = std::get<0>(binders->get<LineGapWidth>()->interpolationFactor(zoom)),
                     .offset_t = std::get<0>(binders->get<LineOffset>()->interpolationFactor(zoom)),
                     .width_t = std::get<0>(binders->get<LineWidth>()->interpolationFactor(zoom)),
-                    .tile_fade = drawable.getTileFade(),
+                    .pad1 = 0,
                     .pad2 = 0
                 };
 
@@ -326,7 +326,7 @@ void LineLayerTweaker::execute(LayerGroupBase& layerGroup, const PaintParameters
                               crossfade.toScale},
 
                     .texsize = {static_cast<float>(textureSize.width), static_cast<float>(textureSize.height)},
-                    .fade = crossfade.t, .tile_fade = drawable.getTileFade()
+                    .fade = crossfade.t, .pad1 = 0
                 };
 
 #if !MLN_UBO_CONSOLIDATION
@@ -376,7 +376,7 @@ void LineLayerTweaker::execute(LayerGroupBase& layerGroup, const PaintParameters
                         .offset_t = std::get<0>(binders->get<LineOffset>()->interpolationFactor(zoom)),
                         .width_t = std::get<0>(binders->get<LineWidth>()->interpolationFactor(zoom)),
                         .floorwidth_t = std::get<0>(binders->get<LineFloorWidth>()->interpolationFactor(zoom)),
-                        .tile_fade = drawable.getTileFade(),
+                        .pad1 = 0,
                         .pad2 = 0
                     };
 

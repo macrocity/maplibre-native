@@ -430,20 +430,16 @@ int16_t wrapFor(double centerX, const CanonicalTileID& tile) {
 std::vector<OverscaledTileID> tileCover(const TileCoverParameters& state,
                                         uint8_t z,
                                         const Range<uint8_t> zoomRange,
-                                        const std::optional<uint8_t>& overscaledZ,
-                                        std::vector<double>* splitZooms) {
+                                        const std::optional<uint8_t>& overscaledZ) {
     struct Node {
         uint8_t zoom;
         uint32_t x, y;
         int16_t wrap;
         bool fullyVisible;
-        // the unrounded zoom its parent wanted when it split into this node and its siblings (`splitZooms`)
-        double parentZoom = std::numeric_limits<double>::infinity();
     };
     struct ResultTile {
         OverscaledTileID id;
         double sqrDist;
-        double splitZoom;
     };
 
     const auto& transform = state.transformState;
@@ -477,8 +473,6 @@ std::vector<OverscaledTileID> tileCover(const TileCoverParameters& state,
     const double distanceZ = std::abs(centerCoord[2] - cameraCoord[2]);
     const double distanceToCenter3d = std::hypot(distanceToCenter2d, distanceZ);
     const double requestedCenterZoom = transform.getZoom() + (z - std::floor(transform.getZoom()));
-    // the zooms the cover is past the source's maximum (`z` stops there; `overscaledZ` does not)
-    const double beyondMaxZoom = std::max(0, static_cast<int>(overscaledZ.value_or(z)) - static_cast<int>(z));
     const double fovDegrees = transform.getFieldOfView() * 180.0 / std::numbers::pi;
     const TileZoomFunction tileZoom(fovDegrees);
     const double cullingElevation = elevationForTileCulling(transform.getPitch() * 180.0 / std::numbers::pi,
@@ -503,9 +497,6 @@ std::vector<OverscaledTileID> tileCover(const TileCoverParameters& state,
         }
 
         double desiredZ = z;
-        // desiredZ before its rounding: where between two zooms the tile stands (`splitZooms`), past the source's
-        // maximum zoom too (an overscaled cover)
-        double unrounded = requestedCenterZoom;
         if (allowVariableZoom) {
             const double distToTile2d = distanceToTile2d(cameraCoord[0], cameraCoord[1], tile);
             // The zoom function divides the distance by cos(fov / 2), so a tile a little farther away than the center
@@ -516,12 +507,8 @@ std::vector<OverscaledTileID> tileCover(const TileCoverParameters& state,
             // hand-over to Mercator at 12 (https://github.com/macrocity/app/issues/613).
             const double byDistance = std::floor(requestedCenterZoom +
                                                  std::log2(distanceToCenter3d / std::hypot(distToTile2d, distanceZ)));
-            const double byZoomFunction = tileZoom(requestedCenterZoom, distToTile2d, distanceZ, distanceToCenter3d);
-            desiredZ = std::min(std::floor(byZoomFunction), std::max(static_cast<double>(z), byDistance));
-            unrounded = std::min(byZoomFunction,
-                                 std::max(requestedCenterZoom,
-                                          requestedCenterZoom + std::log2(distanceToCenter3d /
-                                                                          std::hypot(distToTile2d, distanceZ))));
+            desiredZ = std::min(std::floor(tileZoom(requestedCenterZoom, distToTile2d, distanceZ, distanceToCenter3d)),
+                                std::max(static_cast<double>(z), byDistance));
         }
         const auto targetZoom = static_cast<uint8_t>(std::clamp(desiredZ, 0.0, static_cast<double>(maxZoom)));
 
@@ -536,8 +523,7 @@ std::vector<OverscaledTileID> tileCover(const TileCoverParameters& state,
             result.push_back(
                 {OverscaledTileID(
                      node.zoom == maxZoom ? overscaledZoom : node.zoom, node.wrap, node.zoom, node.x, node.y),
-                 dx * dx + dy * dy,
-                 node.parentZoom});
+                 dx * dx + dy * dy});
             continue;
         }
         for (int i = 0; i < 4; i++) {
@@ -545,8 +531,7 @@ std::vector<OverscaledTileID> tileCover(const TileCoverParameters& state,
                              .x = (node.x << 1) + (i % 2),
                              .y = (node.y << 1) + (i >> 1),
                              .wrap = node.wrap,
-                             .fullyVisible = node.fullyVisible,
-                             .parentZoom = unrounded + beyondMaxZoom});
+                             .fullyVisible = node.fullyVisible});
         }
     }
 
@@ -554,10 +539,8 @@ std::vector<OverscaledTileID> tileCover(const TileCoverParameters& state,
         result.begin(), result.end(), [](const ResultTile& a, const ResultTile& b) { return a.sqrDist < b.sqrDist; });
     std::vector<OverscaledTileID> ids;
     ids.reserve(result.size());
-    if (splitZooms) splitZooms->clear();
     for (const auto& tile : result) {
         ids.push_back(tile.id);
-        if (splitZooms) splitZooms->push_back(tile.splitZoom);
     }
     return ids;
 }
@@ -568,10 +551,9 @@ std::vector<OverscaledTileID> tileCover(const TileCoverParameters& state,
 std::vector<OverscaledTileID> tileCover(const TileCoverParameters& state,
                                         uint8_t z,
                                         const Range<uint8_t> zoomRange,
-                                        const std::optional<uint8_t>& overscaledZ,
-                                        std::vector<double>* splitZooms) {
+                                        const std::optional<uint8_t>& overscaledZ) {
     if (state.transformState.isGlobeRendering()) {
-        return globe::tileCover(state, z, zoomRange, overscaledZ, splitZooms);
+        return globe::tileCover(state, z, zoomRange, overscaledZ);
     }
 
     struct Node {
@@ -723,18 +705,9 @@ std::vector<OverscaledTileID> tileCover(const TileCoverParameters& state,
 
     std::vector<OverscaledTileID> ids;
     ids.reserve(result.size());
-    if (splitZooms) splitZooms->clear();
 
     for (const auto& tile : result) {
         ids.push_back(tile.id);
-        // The nominal zoom's tiles split from their parents as the map's zoom reached it; the others split at whole
-        // zooms whatever the zoom between (the distance rule above): no zoom to say how far they are past it.
-        if (splitZooms) {
-            const double zoom = state.transformState.getZoom();
-            splitZooms->push_back(tile.id.canonical.z == z
-                                      ? zoom + (overscaledZ.value_or(z) - std::floor(zoom))
-                                      : std::numeric_limits<double>::infinity());
-        }
     }
 
     return ids;

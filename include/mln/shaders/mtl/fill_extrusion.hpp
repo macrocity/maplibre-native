@@ -29,7 +29,7 @@ struct alignas(16) FillExtrusionDrawableUBO {
     /*  96 */ float color_t;
     /* 100 */ float pattern_from_t;
     /* 104 */ float pattern_to_t;
-    /* 108 */ float tile_fade;
+    /* 108 */ float pad1;
     /* 112 */
 };
 static_assert(sizeof(FillExtrusionDrawableUBO) == 7 * 16, "wrong size");
@@ -94,7 +94,6 @@ struct VertexStage {
 struct FragmentStage {
     float4 position [[position, invariant]];
     half4 color;
-    float3 lod;
 };
 
 struct FragmentOutput {
@@ -179,16 +178,10 @@ FragmentStage vertex vertexMain(thread const VertexStage vertx [[stage_in]],
     return {
         .position = position,
         .color    = half4(vcolor * props.opacity),
-        .lod = float3((float2(vertx.pos) + decimals), drawable.tile_fade),
     };
 }
 
 fragment FragmentOutput fragmentMain(FragmentStage in [[stage_in]]) {
-    // the blend between two levels of detail (TilePyramid::lodBlend): a building of the level this pixel does not
-    // take writes neither colour nor depth
-    if (lodBlend(in.lod.z, in.position.xy, in.lod.xy) < 0.5) {
-        discard_fragment();
-    }
     return { in.color/*, in.position.z*/ };
 }
 )";
@@ -229,7 +222,6 @@ struct OutlineInstance {
 struct FragmentStage {
     float4 position [[position, invariant]];
     half4 color;
-    float3 lod;
 };
 
 struct FragmentOutput {
@@ -327,16 +319,10 @@ FragmentStage vertex vertexMain(thread const VertexStage vertx [[stage_in]],
     return {
         .position = position,
         .color    = half4(vcolor * props.opacity),
-        .lod = float3((vertx.pos.x == 0.0 ? p1 : p2), drawable.tile_fade),
     };
 }
 
 fragment FragmentOutput fragmentMain(FragmentStage in [[stage_in]]) {
-    // the blend between two levels of detail (TilePyramid::lodBlend): a building of the level this pixel does not
-    // take writes neither colour nor depth
-    if (lodBlend(in.lod.z, in.position.xy, in.lod.xy) < 0.5) {
-        discard_fragment();
-    }
     return { in.color/*, in.position.z*/ };
 }
 )";
@@ -385,7 +371,6 @@ struct FragmentStage {
 #if !defined(HAS_UNIFORM_u_pattern_to)
     half4 pattern_to;
 #endif
-    float3 lod;
 };
 
 struct FragmentOutput {
@@ -487,7 +472,6 @@ FragmentStage vertex vertexMain(thread const VertexStage vertx [[stage_in]],
 #endif
         .pos_a          = get_pattern_pos(drawable.pixel_coord_upper, drawable.pixel_coord_lower, fromScale * display_size_a, tileZoomRatio, pos),
         .pos_b          = get_pattern_pos(drawable.pixel_coord_upper, drawable.pixel_coord_lower, toScale * display_size_b, tileZoomRatio, pos),
-        .lod = float3((float2(vertx.pos) + decimals), drawable.tile_fade),
     };
 }
 
@@ -497,11 +481,6 @@ fragment FragmentOutput fragmentMain(FragmentStage in [[stage_in]],
                                      device const FillExtrusionPropsUBO& props [[buffer(idFillExtrusionPropsUBO)]],
                                      texture2d<float, access::sample> image0 [[texture(0)]],
                                      sampler image0_sampler [[sampler(0)]]) {
-    // the blend between two levels of detail (TilePyramid::lodBlend): a building of the level this pixel does not
-    // take writes neither colour nor depth
-    if (lodBlend(in.lod.z, in.position.xy, in.lod.xy) < 0.5) {
-        discard_fragment();
-    }
 #if defined(OVERDRAW_INSPECTOR)
     return {half4(1.0)/*, in.position.z*/};
 #endif
@@ -584,7 +563,6 @@ struct FragmentStage {
 #if !defined(HAS_UNIFORM_u_pattern_to)
     half4 pattern_to;
 #endif
-    float3 lod;
 };
 
 struct FragmentOutput {
@@ -715,7 +693,6 @@ FragmentStage vertex vertexMain(thread const VertexStage vertx [[stage_in]],
 #if !defined(HAS_UNIFORM_u_pattern_to)
         .pattern_to     = half4(pattern_to),
 #endif
-        .lod = float3((vertx.pos.x == 0.0 ? p1 : p2), drawable.tile_fade),
     };
 }
 
@@ -725,11 +702,6 @@ fragment FragmentOutput fragmentMain(FragmentStage in [[stage_in]],
                                      device const FillExtrusionPropsUBO& props [[buffer(idFillExtrusionPropsUBO)]],
                                      texture2d<float, access::sample> image0 [[texture(0)]],
                                      sampler image0_sampler [[sampler(0)]]) {
-    // the blend between two levels of detail (TilePyramid::lodBlend): a building of the level this pixel does not
-    // take writes neither colour nor depth
-    if (lodBlend(in.lod.z, in.position.xy, in.lod.xy) < 0.5) {
-        discard_fragment();
-    }
 #if defined(OVERDRAW_INSPECTOR)
     return {half4(1.0)/*, in.position.z*/};
 #endif

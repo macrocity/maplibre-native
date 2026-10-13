@@ -9,8 +9,6 @@
 #include <mln/renderer/render_tile.hpp>
 #include <mln/style/color_ramp_property_value.hpp>
 #include <mln/style/layer_properties.hpp>
-
-#include <map>
 #include <mln/style/layer.hpp>
 #include <mln/style/types.hpp>
 #include <mln/tile/tile.hpp>
@@ -71,14 +69,7 @@ void RenderLayer::prepare(const LayerPrepareParameters& params) {
     assert(params.source->isEnabled());
 
     sourceForState = params.source;
-    renderTiles = fadesTileGeometry() ? params.source->getRenderTilesFadingGeometry() : params.source->getRenderTiles();
-    if (lodParentsOnly && renderTiles) {
-        auto parents = std::make_shared<std::vector<std::reference_wrapper<const RenderTile>>>();
-        for (const RenderTile& tile : *renderTiles) {
-            if (tile.lodParent) parents->emplace_back(tile);
-        }
-        renderTiles = std::move(parents);
-    }
+    renderTiles = params.source->getRenderTiles();
     renderTilesOwner = params.source->getRawRenderTiles();
 
     addRenderPassesFromTiles();
@@ -445,38 +436,6 @@ std::optional<RenderLayer::NDCBound> RenderLayer::computeFeatureNDCBound(const s
             .minX = ndcRangeX.first, .maxX = ndcRangeX.second, .minY = ndcRangeY.first, .maxY = ndcRangeY.second};
     }
     return std::nullopt;
-}
-
-} // namespace mln
-
-namespace mln {
-
-RenderTiles RenderLayer::clippedRenderTiles() const {
-    if (!renderTiles) return renderTiles;
-    bool any = false;
-    for (const RenderTile& tile : *renderTiles) any = any || tile.lodParent;
-    if (!any) return renderTiles;
-    auto result = std::make_shared<std::vector<std::reference_wrapper<const RenderTile>>>();
-    result->reserve(renderTiles->size());
-    for (const RenderTile& tile : *renderTiles) {
-        if (!tile.lodParent) result->emplace_back(tile);
-    }
-    return result;
-}
-
-void RenderLayer::applyTileFades(TileLayerGroup& group) const {
-    if (!renderTiles) return;
-    std::map<OverscaledTileID, const RenderTile*> byTile;
-    for (const RenderTile& tile : *renderTiles) byTile.emplace(tile.getOverscaledTileID(), &tile);
-    group.visitDrawables([&](gfx::Drawable& drawable) {
-        const auto& tileID = drawable.getTileID();
-        if (!tileID) return;
-        const auto found = byTile.find(*tileID);
-        if (found == byTile.end()) return;
-        drawable.setTileFade(found->second->lodFade);
-        const bool clipped = !found->second->lodParent;
-        if (drawable.getEnableStencil() != clipped) drawable.setEnableStencil(clipped);
-    });
 }
 
 } // namespace mln

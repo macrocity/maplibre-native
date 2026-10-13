@@ -25,7 +25,7 @@ layout (std140) uniform FillOutlineDrawableUBO {
     // Interpolations
     highp float u_outline_color_t;
     highp float u_opacity_t;
-    highp float u_tile_fade;
+    lowp float drawable_pad1;
     lowp float drawable_pad2;
 };
 
@@ -51,8 +51,6 @@ layout (location = 2) in lowp vec2 a_opacity;
 out lowp float opacity;
 #endif
 
-out highp vec3 v_lod;
-
 void main() {
     #ifndef HAS_UNIFORM_u_outline_color
 outline_color = unpack_mix_color(a_outline_color, u_outline_color_t);
@@ -67,7 +65,6 @@ lowp float opacity = u_opacity;
 
     gl_Position = projectTile(a_pos, a_pos);
     v_pos = (gl_Position.xy / gl_Position.w + 1.0) / 2.0 * u_world_size;
-    v_lod = vec3(a_pos, u_tile_fade);
 }
 )";
     static constexpr const char* fragment = R"(layout (std140) uniform FillEvaluatedPropsUBO {
@@ -88,8 +85,6 @@ in highp vec4 outline_color;
 in lowp float opacity;
 #endif
 
-in highp vec3 v_lod;
-
 void main() {
     #ifdef HAS_UNIFORM_u_outline_color
 highp vec4 outline_color = u_outline_color;
@@ -101,12 +96,6 @@ lowp float opacity = u_opacity;
     float dist = length(v_pos - gl_FragCoord.xy);
     float alpha = 1.0 - smoothstep(0.0, 1.0, dist);
     fragColor = outline_color * (alpha * opacity);
-
-    // the blend between two levels of detail (TilePyramid::lodBlend): a pixel of the other level is left
-    // whole, colour and depth (the two levels' depths differ by a hair in a tilted view, and fought)
-    if (lod_blend(v_lod.z, gl_FragCoord.xy, v_lod.xy) < 0.5) {
-        discard;
-    }
 
 #ifdef OVERDRAW_INSPECTOR
     fragColor = vec4(1.0);

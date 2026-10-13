@@ -26,7 +26,6 @@ public:
 
     RenderTiles getRenderTiles() const override;
     RenderTiles getRenderTilesSortedByYPosition() const override;
-    RenderTiles getRenderTilesFadingGeometry() const override;
     const Tile* getRenderedTile(const UnwrappedTileID&) const override;
     Immutable<std::vector<RenderTile>> getRawRenderTiles() const override { return renderTiles; }
 
@@ -56,7 +55,6 @@ protected:
     TilePyramid tilePyramid;
     Immutable<std::vector<RenderTile>> renderTiles;
     mutable RenderTiles filteredRenderTiles;
-    mutable RenderTiles fadingGeometryRenderTiles;
     mutable RenderTiles renderTilesSortedByY;
 
 private:

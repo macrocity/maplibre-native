@@ -137,11 +137,6 @@ public:
     /// Set stencil usage
     virtual void setEnableStencil(bool value) { enableStencil = value; }
 
-    /// How much of its tile is drawn, as the tile cover crossfades (TilePyramid::tileFade); layer tweakers hand it to
-    /// the shader. 1 for a whole tile.
-    float getTileFade() const { return tileFade; }
-    void setTileFade(float value) { tileFade = value; }
-
     /// not used for anything yet
     DrawPriority getDrawPriority() const { return drawPriority; }
     void setDrawPriority(DrawPriority value) { drawPriority = value; }
@@ -287,7 +282,6 @@ protected:
     bool enabled = true;
     bool enableColor = true;
     bool enableStencil = false;
-    float tileFade = 1.0f;
     bool enableDepth = true;
     bool is3D = false;
     bool isCustom = false;

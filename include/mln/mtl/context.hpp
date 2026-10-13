@@ -18,6 +18,7 @@
 #include <memory>
 #include <optional>
 #include <tuple>
+#include <unordered_map>
 #include <vector>
 
 namespace mln {
@@ -192,6 +193,8 @@ private:
 
     gfx::ShaderProgramBasePtr clipMaskShader;
     MTLDepthStencilStatePtr clipMaskDepthStencilState;
+    /// Depth-stencil states are immutable: one per distinct descriptor, kept for the life of the context.
+    mutable std::unordered_map<std::uint64_t, MTLDepthStencilStatePtr> depthStencilStates;
     MTLRenderPipelineStatePtr clipMaskPipelineState;
     std::optional<BufferResource> clipMaskUniformsBuffer;
     bool clipMaskUniformsBufferUsed = false;

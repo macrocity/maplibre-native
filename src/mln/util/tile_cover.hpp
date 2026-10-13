@@ -44,15 +44,10 @@ struct TileCoverParameters {
 
 int32_t coveringZoomLevel(double z, style::SourceType type, uint16_t tileSize) noexcept;
 
-/// `splitZooms`, when given, gets one value per tile: the unrounded zoom at which the tile's parent wanted to be drawn
-/// when it split into the tile and its siblings. Its whole part is the tile's own zoom (or more); how far it is past
-/// that says how far the cover is past the zoom where the tile replaced its parent (TilePyramid's level blend).
-/// Infinite for a tile no zoom between two whole zooms brought in.
 std::vector<OverscaledTileID> tileCover(const TileCoverParameters& state,
                                         uint8_t z,
                                         const Range<uint8_t> zoomRange,
-                                        const std::optional<uint8_t>& overscaledZ = std::nullopt,
-                                        std::vector<double>* splitZooms = nullptr);
+                                        const std::optional<uint8_t>& overscaledZ = std::nullopt);
 std::vector<UnwrappedTileID> tileCover(const LatLngBounds&, uint8_t z);
 std::vector<UnwrappedTileID> tileCover(const Geometry<double>&, uint8_t z);
 

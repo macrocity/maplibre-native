@@ -30,7 +30,7 @@ layout (std140) uniform FillExtrusionDrawableUBO {
     highp float u_color_t;
     highp float u_pattern_from_t;
     highp float u_pattern_to_t;
-    highp float u_tile_fade;
+    lowp float drawable_pad1;
 };
 
 layout (std140) uniform FillExtrusionTilePropsUBO {
@@ -61,8 +61,6 @@ layout (std140) uniform FillExtrusionPropsUBO {
 #pragma mapbox: define lowp float height
 #pragma mapbox: define mediump vec4 pattern_from
 #pragma mapbox: define mediump vec4 pattern_to
-
-out highp vec3 v_lod;
 
 void main() {
     #pragma mapbox: initialize lowp float base
@@ -115,5 +113,4 @@ void main() {
 
     v_lighting.rgb += clamp(directional * u_lightcolor, mix(vec3(0.0), vec3(0.3), 1.0 - u_lightcolor), vec3(1.0));
     v_lighting *= u_opacity;
-    v_lod = vec3(a_pos + decimals, u_tile_fade);
 }

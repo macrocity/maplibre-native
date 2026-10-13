@@ -40,7 +40,7 @@ layout (std140) uniform FillExtrusionDrawableUBO {
     highp float u_color_t;
     highp float u_pattern_from_t;
     highp float u_pattern_to_t;
-    highp float u_tile_fade;
+    lowp float drawable_pad1;
 };
 
 layout (std140) uniform FillExtrusionTilePropsUBO {
@@ -83,8 +83,6 @@ out mediump vec4 pattern_from;
 layout (location = 6) in mediump vec4 a_pattern_to;
 out mediump vec4 pattern_to;
 #endif
-
-out highp vec3 v_lod;
 
 void main() {
     #ifndef HAS_UNIFORM_u_base
@@ -153,7 +151,6 @@ mediump vec4 pattern_to = u_pattern_to;
 
     v_lighting.rgb += clamp(directional * u_lightcolor, mix(vec3(0.0), vec3(0.3), 1.0 - u_lightcolor), vec3(1.0));
     v_lighting *= u_opacity;
-    v_lod = vec3(a_pos + decimals, u_tile_fade);
 }
 )";
     static constexpr const char* fragment = R"(in vec2 v_pos_a;
@@ -199,14 +196,7 @@ in mediump vec4 pattern_from;
 in mediump vec4 pattern_to;
 #endif
 
-in highp vec3 v_lod;
-
 void main() {
-    // the blend between two levels of detail (TilePyramid::lodBlend): a building of the level this pixel does not
-    // take writes neither colour nor depth
-    if (lod_blend(v_lod.z, gl_FragCoord.xy, v_lod.xy) < 0.5) {
-        discard;
-    }
     #ifdef HAS_UNIFORM_u_base
 lowp float base = u_base;
 #endif

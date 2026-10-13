@@ -25,7 +25,7 @@ layout (std140) uniform FillExtrusionDrawableUBO {
     highp float u_color_t;
     highp float u_pattern_from_t;
     highp float u_pattern_to_t;
-    highp float u_tile_fade;
+    lowp float drawable_pad1;
 };
 
 layout (std140) uniform FillExtrusionTilePropsUBO {
@@ -61,8 +61,6 @@ layout (location = 4) in highp vec2 a_height;
 #ifndef HAS_UNIFORM_u_color
 layout (location = 5) in highp vec4 a_color;
 #endif
-
-out highp vec3 v_lod;
 
 void main() {
     #ifndef HAS_UNIFORM_u_base
@@ -126,19 +124,11 @@ highp vec4 color = u_color;
     v_color.g += clamp(color.g * directional * u_lightcolor.g, mix(0.0, 0.3, 1.0 - u_lightcolor.g), 1.0);
     v_color.b += clamp(color.b * directional * u_lightcolor.b, mix(0.0, 0.3, 1.0 - u_lightcolor.b), 1.0);
     v_color *= u_opacity;
-    v_lod = vec3(a_pos + decimals, u_tile_fade);
 }
 )";
     static constexpr const char* fragment = R"(in vec4 v_color;
 
-in highp vec3 v_lod;
-
 void main() {
-    // the blend between two levels of detail (TilePyramid::lodBlend): a building of the level this pixel does not
-    // take writes neither colour nor depth
-    if (lod_blend(v_lod.z, gl_FragCoord.xy, v_lod.xy) < 0.5) {
-        discard;
-    }
     fragColor = v_color;
 
 #ifdef OVERDRAW_INSPECTOR
