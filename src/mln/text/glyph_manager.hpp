@@ -16,6 +16,7 @@
 namespace mln {
 
 class FileSource;
+class Scheduler;
 class AsyncRequest;
 class Response;
 
@@ -80,7 +81,6 @@ public:
     std::string getFontFaceURL(GlyphIDType type);
 
 private:
-    Glyph generateLocalSDF(const FontStack &fontStack, GlyphID glyphID);
     std::string glyphURL;
 
     struct GlyphRequest {
@@ -89,9 +89,16 @@ private:
         std::unordered_map<GlyphRequestor *, std::shared_ptr<GlyphDependencies>> requestors;
     };
 
+    /// Glyphs drawn by the local rasterizer on a background thread, and who waits for them.
+    struct LocalRequest {
+        std::unordered_map<GlyphRequestor *, std::shared_ptr<GlyphDependencies>> requestors;
+    };
+
     struct Entry {
         std::map<GlyphRange, GlyphRequest> ranges;
         std::map<GlyphID, Immutable<Glyph>> glyphs;
+        /// The local glyphs being drawn, each with the request it is drawn in.
+        std::map<GlyphID, std::shared_ptr<LocalRequest>> local;
     };
 
     std::unordered_map<FontStack, Entry, FontStackHasher> entries;
@@ -99,11 +106,17 @@ private:
     void requestRange(GlyphRequest &, const FontStack &, const GlyphRange &, FileSource &fileSource);
     void processResponse(const Response &, const FontStack &, const GlyphRange &);
     void notify(GlyphRequestor &, const GlyphDependencies &);
+    /// Draws `glyphIDs` off this thread; `request`'s requestors are notified here once they are in.
+    void requestLocal(const std::shared_ptr<LocalRequest> &, const FontStack &, std::vector<GlyphID> glyphIDs);
+    void processLocal(const std::shared_ptr<LocalRequest> &, const FontStack &, std::vector<Glyph> &);
 
     GlyphManagerObserver *observer = nullptr;
 
     // Shaping objects
-    std::unique_ptr<LocalGlyphRasterizer> localGlyphRasterizer;
+    // Shared with the background drawing of local glyphs, which may outlive this manager.
+    std::shared_ptr<LocalGlyphRasterizer> localGlyphRasterizer;
+    std::shared_ptr<Scheduler> localScheduler;
+    std::shared_ptr<bool> alive = std::make_shared<bool>(true);
     std::shared_ptr<FontFaces> fontFaces;
 
     FreeTypeLibrary ftLibrary;
