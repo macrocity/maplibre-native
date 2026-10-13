@@ -1,5 +1,7 @@
 #include <mln/tile/geometry_tile.hpp>
 
+#include <optional>
+
 #include <mln/actor/scheduler.hpp>
 #include <mln/geometry/feature_index.hpp>
 #include <mln/style/layers/custom_layer.hpp>
@@ -92,6 +94,7 @@ private:
 
     std::shared_ptr<GeometryTile::LayoutResult> layoutResult;
     std::vector<ImagePatch> imagePatches;
+    std::optional<std::uint64_t> patchedGeneration;
 };
 
 using namespace style;
@@ -150,6 +153,11 @@ void GeometryTileRenderData::prepare(const SourcePrepareParameters& parameters) 
 
     if (!layoutResult) return;
     imagePatches.clear();
+    // Every tile looked every image ever updated up in its atlas on every frame. Patches come only from a change of
+    // the updated images, so a tile that has seen this generation has none to make.
+    const auto generation = parameters.imageManager.updatedImageVersionsGeneration;
+    if (patchedGeneration && *patchedGeneration == generation) return;
+    patchedGeneration = generation;
     populateImagePatches(layoutResult->imageAtlas.iconPositions, parameters.imageManager, imagePatches);
     populateImagePatches(layoutResult->imageAtlas.patternPositions, parameters.imageManager, imagePatches);
 }

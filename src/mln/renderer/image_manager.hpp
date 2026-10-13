@@ -54,6 +54,9 @@ public:
     Immutable<std::set<std::string>> getAvailableImages() const;
 
     ImageVersionMap updatedImageVersions;
+    /// Goes up whenever `updatedImageVersions` changes: a tile that patched its atlas at this generation has nothing
+    /// to patch until it moves on.
+    std::uint64_t updatedImageVersionsGeneration = 0;
 
     void clear();
 

@@ -77,6 +77,7 @@ bool ImageManager::updateImage(Immutable<style::Image::Impl> image_) {
     } else {
         updatedImageVersions[image_->id]++;
     }
+    updatedImageVersionsGeneration++;
 
     oldImage->second = std::move(image_);
 
@@ -99,6 +100,7 @@ void ImageManager::removeImage(const std::string& id) {
     images.erase(it);
     mutate(availableImages, [&](auto& ids) { ids.erase(id); });
     updatedImageVersions.erase(id);
+    updatedImageVersionsGeneration++;
 }
 
 const style::Image::Impl* ImageManager::getImage(const std::string& id) const {
@@ -212,6 +214,7 @@ void ImageManager::clear() {
     images.clear();
     availableImages = makeMutable<std::set<std::string>>();
     updatedImageVersions.clear();
+    updatedImageVersionsGeneration++;
     requestedImages.clear();
     loaded = false;
 }
