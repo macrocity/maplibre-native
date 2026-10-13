@@ -25,6 +25,7 @@
 #include <simd/simd.h>
 
 #include <cassert>
+#include <unordered_map>
 #if !defined(NDEBUG)
 #include <sstream>
 #endif
@@ -620,10 +621,43 @@ void Drawable::upload(gfx::UploadPass& uploadPass_) {
     }
 
     if (buildVertexAttribs || buildInstanceAttribs) {
-        // hash
+        // The descriptor is immutable once built and fully determined by the hash of its bindings, so drawables
+        // with the same layout (nearly all of them: same shader, same buckets) share one instead of each
+        // building, and later freeing, a descriptor of ~10 Objective-C objects.
         std::size_t hash{0};
+        const auto hashBindings = [&](const gfx::AttributeBindingArray& attributeBindings, std::size_t base) {
+            NS::UInteger index = base;
+            for (auto& binding : attributeBindings) {
+                if (binding) {
+                    if (!binding->vertexBufferResource && !impl->noBindingBuffer) {
+                        if (const auto& buf = context.getEmptyVertexBuffer()) {
+                            impl->noBindingBuffer = buf.get();
+                        }
+                    }
+                    mln::util::hash_combine(hash,
+                                            mln::util::hash(index,
+                                                            binding->attribute.offset,
+                                                            binding->attribute.dataType,
+                                                            binding->vertexStride,
+                                                            static_cast<bool>(binding->vertexBufferResource),
+                                                            binding->bufferIndex,
+                                                            base != 0));
+                }
+                index += 1;
+            }
+        };
+        hashBindings(impl->attributeBindings, 0);
+        hashBindings(impl->instanceBindings, 1);
 
-        // Create a layout descriptor for each attribute
+        thread_local std::unordered_map<std::size_t, NS::SharedPtr<MTL::VertexDescriptor>> descriptors;
+        auto cached = descriptors.find(hash);
+        if (cached != descriptors.end()) {
+            if (impl->vertexDesc.get() != cached->second.get()) {
+                impl->vertexDesc = cached->second;
+                impl->pipelineState.reset();
+            }
+            impl->vertexDescHash = hash;
+        } else {
         auto vertDesc = NS::RetainPtr(MTL::VertexDescriptor::vertexDescriptor());
 
         const auto applyBindings = [&](const gfx::AttributeBindingArray& attributeBindings,
@@ -631,15 +665,8 @@ void Drawable::upload(gfx::UploadPass& uploadPass_) {
             NS::UInteger index = 0;
             for (auto& binding : attributeBindings) {
                 if (!binding) {
-                    assert("Missing attribute binding");
                     index += 1;
                     continue;
-                }
-
-                if (!binding->vertexBufferResource && !impl->noBindingBuffer) {
-                    if (const auto& buf = context.getEmptyVertexBuffer()) {
-                        impl->noBindingBuffer = buf.get();
-                    }
                 }
 
                 const auto& attribDesc = vertDesc->attributes()->object(index);
@@ -654,18 +681,7 @@ void Drawable::upload(gfx::UploadPass& uploadPass_) {
                     layoutDesc->setStepFunction(binding->vertexBufferResource ? stepFunction
                                                                               : MTL::VertexStepFunctionConstant);
                     layoutDesc->setStepRate(binding->vertexBufferResource ? 1 : 0);
-                } else {
-                    assert(layoutDesc->stride() == static_cast<NS::UInteger>(binding->vertexStride));
-                    assert(layoutDesc->stepRate() == (binding->vertexBufferResource ? 1 : 0));
                 }
-
-                mln::util::hash_combine(hash,
-                                        mln::util::hash(index,
-                                                        binding->attribute.offset,
-                                                        binding->attribute.dataType,
-                                                        binding->vertexStride,
-                                                        static_cast<bool>(binding->vertexBufferResource)));
-
                 index += 1;
             }
         };
@@ -673,9 +689,11 @@ void Drawable::upload(gfx::UploadPass& uploadPass_) {
         applyBindings(impl->attributeBindings, MTL::VertexStepFunctionPerVertex);
         applyBindings(impl->instanceBindings, MTL::VertexStepFunctionPerInstance);
 
+        descriptors.emplace(hash, vertDesc);
         impl->vertexDesc = std::move(vertDesc);
         impl->vertexDescHash = hash;
         impl->pipelineState.reset();
+        }
     }
 
     const bool texturesNeedUpload = std::any_of(
