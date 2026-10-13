@@ -19,6 +19,7 @@ RenderPass::RenderPass(CommandEncoder& commandEncoder_, const char* name, const 
 
     if (const auto& cmdBuff = resource.getCommandBuffer()) {
         commandBuffer = cmdBuff;
+        commandEncoder.getContext().watchFrame(*cmdBuff.get());
         if (auto rpd = resource.getRenderPassDescriptor()) {
             if (descriptor.clearColor) {
                 if (auto copy = NS::TransferPtr(rpd->copy())) {

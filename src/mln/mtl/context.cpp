@@ -76,6 +76,56 @@ Context::~Context() noexcept {
 
 void Context::beginFrame() {
     backend.getThreadPool().runRenderJobs();
+    frame++;
+    // Buffers no frame has asked for in a second of frames are given back to the driver.
+    const auto finished = finishedFrame->load(std::memory_order_acquire);
+    if (pooledBytes && frame % 60 == 0) {
+        for (auto it = bufferPool.begin(); it != bufferPool.end();) {
+            auto& list = it->second;
+            std::erase_if(list, [&](const PooledBuffer& entry) {
+                const bool stale = entry.frame + 60 < frame && entry.frame <= finished;
+                if (stale) pooledBytes -= entry.buffer->length();
+                return stale;
+            });
+            it = list.empty() ? bufferPool.erase(it) : std::next(it);
+        }
+    }
+}
+
+void Context::watchFrame(MTL::CommandBuffer& commandBuffer) {
+    if (watchedFrame == frame) return;
+    watchedFrame = frame;
+    commandBuffer.addCompletedHandler([finished = finishedFrame, done = frame](MTL::CommandBuffer*) {
+        auto seen = finished->load(std::memory_order_relaxed);
+        while (seen < done && !finished->compare_exchange_weak(seen, done, std::memory_order_release)) {
+        }
+    });
+}
+
+MTLBufferPtr Context::takeBuffer(const void* bytes, std::size_t length, MTL::ResourceOptions usage) {
+    const std::uint64_t key = (std::uint64_t(length) << 16) ^ std::uint64_t(usage);
+    const auto found = bufferPool.find(key);
+    if (found != bufferPool.end() && !found->second.empty()) {
+        auto& list = found->second;
+        const auto finished = finishedFrame->load(std::memory_order_acquire);
+        // the oldest first: it is the likeliest to be done
+        if (list.front().frame <= finished && watchedFrame) {
+            auto buffer = std::move(list.front().buffer);
+            list.erase(list.begin());
+            pooledBytes -= length;
+            std::memcpy(buffer->contents(), bytes, length);
+            return buffer;
+        }
+    }
+    return NS::TransferPtr(backend.getDevice()->newBuffer(bytes, length, usage));
+}
+
+void Context::recycleBuffer(MTLBufferPtr&& buffer, MTL::ResourceOptions usage) {
+    // Only buffers the CPU can write, and only while frames report their end.
+    if (!buffer || !watchedFrame || (usage & MTL::ResourceStorageModePrivate)) return;
+    const std::uint64_t key = (std::uint64_t(buffer->length()) << 16) ^ std::uint64_t(usage);
+    pooledBytes += buffer->length();
+    bufferPool[key].push_back(PooledBuffer{std::move(buffer), frame});
 }
 
 void Context::endFrame() {}

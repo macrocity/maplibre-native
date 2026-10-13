@@ -14,6 +14,7 @@
 #include <mln/util/noncopyable.hpp>
 #include <mln/util/containers.hpp>
 
+#include <atomic>
 #include <map>
 #include <memory>
 #include <optional>
@@ -143,6 +144,14 @@ public:
                                                          const void* data,
                                                          std::size_t size);
 
+    /// A buffer of `length` bytes, with `bytes` in it, for a resource updated whole: one the GPU has finished with if
+    /// the pool holds one, else a new one.
+    MTLBufferPtr takeBuffer(const void* bytes, std::size_t length, MTL::ResourceOptions usage);
+    /// Gives back a buffer replaced this frame; it is handed out again once the GPU has finished this frame.
+    void recycleBuffer(MTLBufferPtr&& buffer, MTL::ResourceOptions usage);
+    /// Called by the first render pass of a frame: the frame's command buffer reports when the GPU has finished it.
+    void watchFrame(MTL::CommandBuffer&);
+
     MTLDepthStencilStatePtr makeDepthStencilState(const gfx::DepthMode&,
                                                   const gfx::StencilMode&,
                                                   const gfx::Renderable&) const;
@@ -192,6 +201,18 @@ private:
     UniqueVertexBufferResource emptyVertexBuffer;
 
     gfx::ShaderProgramBasePtr clipMaskShader;
+    // The frames encoded and the last one the GPU has finished, for the buffer pool: updating a buffer while a frame
+    // in flight may still read it would race the GPU, so each update made a new buffer through the driver, hundreds
+    // a frame while the camera moves. Replaced buffers wait here until their frame is done and are filled again.
+    std::uint64_t frame = 1;
+    std::uint64_t watchedFrame = 0;
+    std::shared_ptr<std::atomic<std::uint64_t>> finishedFrame = std::make_shared<std::atomic<std::uint64_t>>(0);
+    struct PooledBuffer {
+        MTLBufferPtr buffer;
+        std::uint64_t frame;
+    };
+    std::unordered_map<std::uint64_t, std::vector<PooledBuffer>> bufferPool;
+    std::size_t pooledBytes = 0;
     MTLDepthStencilStatePtr clipMaskDepthStencilState;
     /// Depth-stencil states are immutable: one per distinct descriptor, kept for the life of the context.
     mutable std::unordered_map<std::uint64_t, MTLDepthStencilStatePtr> depthStencilStates;
