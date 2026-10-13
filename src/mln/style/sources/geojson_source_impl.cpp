@@ -104,6 +104,7 @@ class GeoJSONVTData final : public GeoJSONData {
     Features getChildren(const std::uint32_t) final { return {}; }
     Features getLeaves(const std::uint32_t, const std::uint32_t, const std::uint32_t) final { return {}; }
     std::uint8_t getClusterExpansionZoom(std::uint32_t) final { return 0; }
+    bool isEmpty() const final { return impl->features.empty(); }
 
     friend GeoJSONData;
     GeoJSONVTData(const GeoJSON& geoJSON,

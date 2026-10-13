@@ -102,6 +102,12 @@ void RenderGeoJSONSource::update(Immutable<style::Source::Impl> baseImpl_,
     }
 
     if (!data_) return;
+    // An empty source (a selection, a route, scenery out of range) keeps no tiles: it cost a tile cover, a pyramid
+    // and a parse of every tile each frame for nothing, and unmounting it instead churned the style.
+    if (data_->isEmpty()) {
+        if (!tilePyramid.getTiles().empty()) tilePyramid.clearAll();
+        return;
+    }
 
     tilePyramid.update(layers,
                        needsRendering,

@@ -50,6 +50,8 @@ public:
 
     virtual ~GeoJSONData() = default;
     virtual void getTile(const CanonicalTileID&, const std::function<void(TileFeatures)>&, bool runSynchronously) = 0;
+    /// No features at all: the source needs no tiles.
+    virtual bool isEmpty() const { return false; }
 
     // SuperclusterData
     virtual Features getChildren(std::uint32_t) = 0;
