@@ -548,10 +548,56 @@ std::vector<OverscaledTileID> tileCover(const TileCoverParameters& state,
 } // namespace globe
 } // namespace
 
+namespace {
+std::vector<OverscaledTileID> computeTileCover(const TileCoverParameters& state,
+                                               uint8_t z,
+                                               const Range<uint8_t> zoomRange,
+                                               const std::optional<uint8_t>& overscaledZ);
+} // namespace
+
+/// Every source asks for its cover each frame, and sources of one tile size and zoom range get the same one: the cover
+/// of the frame's camera is kept for those asking again with the same question.
 std::vector<OverscaledTileID> tileCover(const TileCoverParameters& state,
                                         uint8_t z,
                                         const Range<uint8_t> zoomRange,
                                         const std::optional<uint8_t>& overscaledZ) {
+    const auto& t = state.transformState;
+    const auto ll = t.getLatLng();
+    const auto size = t.getSize();
+    const auto pad = t.getEdgeInsets();
+    const std::array<double, 17> camera{{ll.latitude(), ll.longitude(), t.getZoom(), t.getBearing(), t.getPitch(),
+                                         double(size.width), double(size.height), pad.top(), pad.left(), pad.bottom(),
+                                         pad.right(), t.getFieldOfView(), double(t.isGlobeRendering()),
+                                         state.tileLodMinRadius, state.tileLodScale, state.tileLodPitchThreshold,
+                                         double(static_cast<int>(state.tileLodMode))}};
+    struct Entry {
+        uint8_t z;
+        Range<uint8_t> range;
+        std::optional<uint8_t> overscaled;
+        std::vector<OverscaledTileID> tiles;
+    };
+    thread_local std::array<double, 17> cachedCamera{};
+    thread_local std::vector<Entry> cached;
+    if (camera != cachedCamera) {
+        cachedCamera = camera;
+        cached.clear();
+    }
+    for (const auto& entry : cached) {
+        if (entry.z == z && entry.range.min == zoomRange.min && entry.range.max == zoomRange.max &&
+            entry.overscaled == overscaledZ) {
+            return entry.tiles;
+        }
+    }
+    auto tiles = computeTileCover(state, z, zoomRange, overscaledZ);
+    cached.push_back(Entry{z, zoomRange, overscaledZ, tiles});
+    return tiles;
+}
+
+namespace {
+std::vector<OverscaledTileID> computeTileCover(const TileCoverParameters& state,
+                                               uint8_t z,
+                                               const Range<uint8_t> zoomRange,
+                                               const std::optional<uint8_t>& overscaledZ) {
     if (state.transformState.isGlobeRendering()) {
         return globe::tileCover(state, z, zoomRange, overscaledZ);
     }
@@ -712,6 +758,7 @@ std::vector<OverscaledTileID> tileCover(const TileCoverParameters& state,
 
     return ids;
 }
+} // namespace
 
 std::vector<UnwrappedTileID> tileCover(const LatLngBounds& bounds_, uint8_t z) {
     if (bounds_.isEmpty() || bounds_.south() > util::LATITUDE_MAX || bounds_.north() < -util::LATITUDE_MAX) {
