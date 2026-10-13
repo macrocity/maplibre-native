@@ -14,7 +14,7 @@ struct alignas(16) FillDrawableUBO {
     // Interpolations
     /* 64 */ float color_t;
     /* 68 */ float opacity_t;
-    /* 72 */ float tile_fade;
+    /* 72 */ float pad1;
     /* 76 */ float pad2;
     /* 80 */
 };
@@ -29,7 +29,7 @@ struct alignas(16) FillOutlineDrawableUBO {
     // Interpolations
     /* 64 */ float outline_color_t;
     /* 68 */ float opacity_t;
-    /* 72 */ float tile_fade;
+    /* 72 */ float pad1;
     /* 76 */ float pad2;
     /* 80 */
 };
@@ -56,7 +56,7 @@ struct alignas(16) FillPatternTilePropsUBO {
     /*  0 */ std::array<float, 4> pattern_from;
     /* 16 */ std::array<float, 4> pattern_to;
     /* 32 */ std::array<float, 2> texsize;
-    /* 40 */ float tile_fade;
+    /* 40 */ float pad1;
     /* 44 */ float pad2;
     /* 48 */
 };
@@ -83,7 +83,7 @@ struct alignas(16) FillOutlinePatternTilePropsUBO {
     /*  0 */ std::array<float, 4> pattern_from;
     /* 16 */ std::array<float, 4> pattern_to;
     /* 32 */ std::array<float, 2> texsize;
-    /* 40 */ float tile_fade;
+    /* 40 */ float pad1;
     /* 44 */ float pad2;
     /* 48 */
 };
@@ -95,7 +95,7 @@ static_assert(sizeof(FillOutlinePatternTilePropsUBO) == 3 * 16);
 struct alignas(16) FillOutlineTriangulatedDrawableUBO {
     /*  0 */ std::array<float, 4 * 4> matrix;
     /* 64 */ float ratio;
-    /* 68 */ float tile_fade;
+    /* 68 */ float pad1;
     /* 72 */ float pad2;
     /* 76 */ float pad3;
     /* 80 */

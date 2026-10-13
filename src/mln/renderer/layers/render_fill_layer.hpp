@@ -43,7 +43,6 @@ private:
     void evaluate(const PropertyEvaluationParameters &) override;
     bool hasTransition() const override;
     bool hasCrossfade() const override;
-    bool fadesTileGeometry() const override { return true; }
 
     bool queryIntersectsFeature(const GeometryCoordinates &,
                                 const GeometryTileFeature &,

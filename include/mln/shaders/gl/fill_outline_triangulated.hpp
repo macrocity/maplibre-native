@@ -34,7 +34,7 @@ layout (std140) uniform GlobalPaintParamsUBO {
 layout (std140) uniform FillOutlineTriangulatedDrawableUBO {
     highp mat4 u_matrix;
     mediump float u_ratio;
-    highp float u_tile_fade;
+    lowp float drawable_pad1;
     lowp float drawable_pad2;
     lowp float drawable_pad3;
 };
@@ -52,8 +52,6 @@ out vec2 v_normal;
 out float v_width;
 out float v_gamma_scale;
 out highp float v_linesofar;
-
-out highp vec3 v_lod;
 
 void main() {
     // the distance over which the line edge fades out.
@@ -92,7 +90,6 @@ void main() {
     v_gamma_scale = extrude_length_without_perspective / extrude_length_with_perspective;
 
     v_width = outset;
-    v_lod = vec3(pos + dist / u_ratio, u_tile_fade);
 }
 )";
     static constexpr const char* fragment = R"(layout (std140) uniform FillEvaluatedPropsUBO {
@@ -108,8 +105,6 @@ in float v_width;
 in vec2 v_normal;
 in float v_gamma_scale;
 
-in highp vec3 v_lod;
-
 void main() {
     // Calculate the distance of the pixel from the line in pixels.
     float dist = length(v_normal) * v_width;
@@ -121,12 +116,6 @@ void main() {
     float alpha = clamp(min(dist + blur2, v_width - dist) / blur2, 0.0, 1.0);
 
     fragColor = u_outline_color * (alpha * u_opacity);
-
-    // the blend between two levels of detail (TilePyramid::lodBlend): a pixel of the other level is left
-    // whole, colour and depth (the two levels' depths differ by a hair in a tilted view, and fought)
-    if (lod_blend(v_lod.z, gl_FragCoord.xy, v_lod.xy) < 0.5) {
-        discard;
-    }
 
 #ifdef OVERDRAW_INSPECTOR
     fragColor = vec4(1.0);

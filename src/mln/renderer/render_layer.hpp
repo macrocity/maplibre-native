@@ -96,9 +96,6 @@ public:
 };
 
 class RenderLayer {
-private:
-    bool lodParentsOnly = false;
-
 protected:
     RenderLayer(Immutable<style::LayerProperties>);
 
@@ -160,21 +157,7 @@ public:
 
     virtual void prepare(const LayerPrepareParameters&);
 
-    /// Whether the layer draws the parents under their children too, to blend two levels of detail
-    /// (TilePyramid::lodBlend; fill and line).
-    virtual bool fadesTileGeometry() const { return false; }
-
     const LayerPlacementData& getPlacementData() const { return placementData; }
-
-    /// The layer's tiles less the parents drawn under their children, for its tile clipping masks; and every drawable's
-    /// blend and clipping set from its tile's (such a parent is drawn outside the masks, its shaders keeping it to its
-    /// own extent).
-    RenderTiles clippedRenderTiles() const;
-    void applyTileFades(TileLayerGroup&) const;
-
-    /// A layer that ended at the whole zoom a blend between two levels of detail has just passed draws only the
-    /// parents under their children (RenderOrchestrator).
-    void setLodParentsOnly(bool value) { lodParentsOnly = value; }
 
     /// Latest evaluated properties.
     Immutable<style::LayerProperties> evaluatedProperties;

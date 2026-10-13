@@ -708,38 +708,80 @@ void applyStencilMode(const gfx::StencilMode& stencilMode, MTL::StencilDescripto
 MTLDepthStencilStatePtr Context::makeDepthStencilState(const gfx::DepthMode& depthMode,
                                                        const gfx::StencilMode& stencilMode,
                                                        const gfx::Renderable& renderable) const {
+    const auto& renderableResource = renderable.getResource<RenderableResource>();
+    const auto& rpd = renderableResource.getRenderPassDescriptor();
+    bool hasDepth = false;
+    bool hasStencil = false;
+    if (rpd) {
+        if (auto* depthTarget = rpd->depthAttachment()) hasDepth = depthTarget->texture() != nullptr;
+        if (auto* stencilTarget = rpd->stencilAttachment()) hasStencil = stencilTarget->texture() != nullptr;
+    }
+
+    // Everything the descriptor reads, and nothing else: the stencil reference is set on the encoder, so a state made
+    // for one tile's clipping value serves every tile. Making a state is a call into the driver (an XPC round trip on
+    // the simulator), and drawables and 3D layer groups asked for one every frame.
+    const auto stencilFunc = static_cast<std::uint64_t>(
+        stencilMode.test.match([](const auto& test) { return static_cast<std::uint8_t>(test.func); }));
+    // A simple test reads and writes every bit (`applyStencilMode`); a masked one only its mask.
+    const auto stencilTestMasked = stencilMode.test.match(
+        [](const auto& test) { return !std::is_empty_v<std::decay_t<decltype(test)>>; });
+    const auto stencilMask = static_cast<std::uint64_t>(stencilMode.test.match([](const auto& test) -> std::uint32_t {
+        if constexpr (std::is_empty_v<std::decay_t<decltype(test)>>) {
+            return 0;
+        } else {
+            return test.mask;
+        }
+    }));
+    std::uint64_t key = 0;
+    if (hasDepth) {
+        key |= static_cast<std::uint64_t>(depthMode.func);
+        key |= static_cast<std::uint64_t>(depthMode.mask == gfx::DepthMaskType::ReadWrite) << 4;
+        key |= 1ull << 5;
+    }
+    if (hasStencil) {
+        key |= stencilFunc << 6;
+        key |= static_cast<std::uint64_t>(stencilMode.fail) << 10;
+        key |= static_cast<std::uint64_t>(stencilMode.depthFail) << 14;
+        key |= static_cast<std::uint64_t>(stencilMode.pass) << 18;
+        key |= 1ull << 22;
+        key |= static_cast<std::uint64_t>(stencilTestMasked) << 23;
+        key |= stencilMask << 24;
+    }
+    if (const auto hit = depthStencilStates.find(key); hit != depthStencilStates.end()) {
+        return hit->second;
+    }
+
     auto depthStencilDescriptor = NS::TransferPtr(MTL::DepthStencilDescriptor::alloc()->init());
     if (!depthStencilDescriptor) {
         return {};
     }
 
     auto& device = backend.getDevice();
-    const auto& renderableResource = renderable.getResource<RenderableResource>();
-    if (const auto& rpd = renderableResource.getRenderPassDescriptor()) {
+    if (rpd) {
         // Setting depth/stencil properties when the corresponding target textures aren't set causes, e.g.:
         // `Draw Errors Validation MTLDepthStencilDescriptor sets depth test but MTLRenderPassDescriptor has a nil
         // depthAttachment texture`
-        if (auto* depthTarget = rpd->depthAttachment()) {
-            if (depthTarget->texture()) {
-                applyDepthMode(depthMode, depthStencilDescriptor.get());
-            }
+        if (hasDepth) {
+            applyDepthMode(depthMode, depthStencilDescriptor.get());
         }
-        if (auto* stencilTarget = rpd->stencilAttachment()) {
-            if (stencilTarget->texture()) {
-                auto stencilDescriptor = NS::TransferPtr(MTL::StencilDescriptor::alloc()->init());
-                if (!stencilDescriptor) {
-                    return {};
-                }
-
-                applyStencilMode(stencilMode, stencilDescriptor.get());
-
-                depthStencilDescriptor->setFrontFaceStencil(stencilDescriptor.get());
-                depthStencilDescriptor->setBackFaceStencil(stencilDescriptor.get());
+        if (hasStencil) {
+            auto stencilDescriptor = NS::TransferPtr(MTL::StencilDescriptor::alloc()->init());
+            if (!stencilDescriptor) {
+                return {};
             }
+
+            applyStencilMode(stencilMode, stencilDescriptor.get());
+
+            depthStencilDescriptor->setFrontFaceStencil(stencilDescriptor.get());
+            depthStencilDescriptor->setBackFaceStencil(stencilDescriptor.get());
         }
     }
 
-    return NS::TransferPtr(device->newDepthStencilState(depthStencilDescriptor.get()));
+    auto state = NS::TransferPtr(device->newDepthStencilState(depthStencilDescriptor.get()));
+    if (state) {
+        depthStencilStates.emplace(key, state);
+    }
+    return state;
 }
 
 void Context::bindGlobalUniformBuffers(gfx::RenderPass& renderPass) const noexcept {

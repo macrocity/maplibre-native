@@ -25,7 +25,7 @@ layout (std140) uniform FillPatternTilePropsUBO {
     highp vec4 u_pattern_from;
     highp vec4 u_pattern_to;
     highp vec2 u_texsize;
-    highp float u_tile_fade;
+    lowp float tileprops_pad1;
     lowp float tileprops_pad2;
 };
 
@@ -46,8 +46,6 @@ out vec2 v_pos_b;
 #pragma mapbox: define lowp float opacity
 #pragma mapbox: define lowp vec4 pattern_from
 #pragma mapbox: define lowp vec4 pattern_to
-
-out highp vec2 v_lod_pos;
 
 void main() {
     #pragma mapbox: initialize lowp float opacity
@@ -70,5 +68,4 @@ void main() {
 
     v_pos_a = get_pattern_pos(u_pixel_coord_upper, u_pixel_coord_lower, fromScale * display_size_a, tileZoomRatio, a_pos);
     v_pos_b = get_pattern_pos(u_pixel_coord_upper, u_pixel_coord_lower, toScale * display_size_b, tileZoomRatio, a_pos);
-    v_lod_pos = a_pos;
 }

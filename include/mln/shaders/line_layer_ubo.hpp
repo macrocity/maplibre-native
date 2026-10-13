@@ -22,7 +22,7 @@ struct alignas(16) LineDrawableUBO {
     /* 80 */ float gapwidth_t;
     /* 84 */ float offset_t;
     /* 88 */ float width_t;
-    /* 92 */ float tile_fade;
+    /* 92 */ float pad1;
     /* 96 */
 };
 static_assert(sizeof(LineDrawableUBO) == 6 * 16);
@@ -40,7 +40,7 @@ struct alignas(16) LineGradientDrawableUBO {
     /* 76 */ float gapwidth_t;
     /* 80 */ float offset_t;
     /* 84 */ float width_t;
-    /* 88 */ float tile_fade;
+    /* 88 */ float pad1;
     /* 92 */ float pad2;
     /* 96 */
 };
@@ -71,7 +71,7 @@ struct alignas(16) LinePatternTilePropsUBO {
     /* 32 */ std::array<float, 4> scale;
     /* 48 */ std::array<float, 2> texsize;
     /* 56 */ float fade;
-    /* 60 */ float tile_fade;
+    /* 60 */ float pad1;
     /* 64 */
 };
 static_assert(sizeof(LinePatternTilePropsUBO) == 4 * 16);
@@ -95,7 +95,7 @@ struct alignas(16) LineSDFDrawableUBO {
     /* 108 */ float offset_t;
     /* 112 */ float width_t;
     /* 116 */ float floorwidth_t;
-    /* 120 */ float tile_fade;
+    /* 120 */ float pad1;
     /* 124 */ float pad2;
     /* 128 */
 };
