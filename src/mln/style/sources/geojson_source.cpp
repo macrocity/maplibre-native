@@ -37,6 +37,7 @@ const GeoJSONSource::Impl& GeoJSONSource::impl() const {
  */
 void GeoJSONSource::setURL(const std::string& url_) {
     url = url_;
+    ++dataGeneration;
 
     // Signal that the source description needs a reload
     if (loaded || req) {
@@ -50,7 +51,30 @@ void GeoJSONSource::setGeoJSON(const mapbox::geojson::geojson& geoJSON) {
     setGeoJSONData(GeoJSONData::create(geoJSON, sequencedScheduler, impl().getOptions()));
 }
 
+void GeoJSONSource::setGeoJSONText(std::shared_ptr<const std::string> text) {
+    const auto generation = ++dataGeneration;
+    Scheduler::GetBackground()->scheduleAndReplyValue(
+        util::SimpleIdentity::Empty,
+        [text = std::move(text), options = impl().getOptions(), scheduler = sequencedScheduler]()
+            -> std::shared_ptr<GeoJSONData> {
+            conversion::Error error;
+            const auto geoJSON = conversion::parseGeoJSON(*text, error);
+            if (!geoJSON) {
+                Log::Error(Event::ParseStyle, "GeoJSON text: " + error.message);
+                return nullptr;
+            }
+            return GeoJSONData::create(*geoJSON, scheduler, options);
+        },
+        [weak = makeWeakPtr(), generation](std::shared_ptr<GeoJSONData> data) {
+            if (auto guard = weak.lock(); weak && data) {
+                auto& source = static_cast<GeoJSONSource&>(*weak.get());
+                if (source.dataGeneration == generation) source.setGeoJSONData(std::move(data));
+            }
+        });
+}
+
 void GeoJSONSource::setGeoJSONData(std::shared_ptr<GeoJSONData> geoJSONData) {
+    ++dataGeneration;
     req.reset();
     baseImpl = makeMutable<Impl>(impl(), std::move(geoJSONData));
     observer->onSourceChanged(*this);

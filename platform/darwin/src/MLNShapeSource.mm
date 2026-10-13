@@ -275,6 +275,12 @@ mln::Immutable<mln::style::GeoJSONOptions> MLNGeoJSONOptionsFromDictionary(
   _shape = shape;
 }
 
+- (void)setGeoJSONText:(NSString *)text {
+  MLNAssertStyleSourceIsValid();
+  self.rawSource->setGeoJSONText(std::make_shared<const std::string>(text.UTF8String ?: ""));
+  _shape = nil;
+}
+
 - (NSString *)description {
   if (self.rawSource) {
     return [NSString stringWithFormat:@"<%@: %p; identifier = %@; URL = %@; shape = %@>",

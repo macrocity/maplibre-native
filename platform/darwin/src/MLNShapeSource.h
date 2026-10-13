@@ -354,6 +354,16 @@ MLN_EXPORT
 @property (nonatomic, copy, nullable) MLNShape *shape;
 
 /**
+ Replaces the contents of the source with a GeoJSON document given as text.
+
+ The text is parsed and prepared for the map on a background thread, and the
+ source takes it on the main thread once it is ready, unless it was given other
+ contents in the meantime. ``shape`` is then `nil`. Text that is not valid
+ GeoJSON leaves the contents as they were. Must be called on the main thread.
+ */
+- (void)setGeoJSONText:(NSString *)text;
+
+/**
  The URL to the GeoJSON document that specifies the contents of the source.
 
  If the receiver was initialized using `-initWithIdentifier:shape:options:`,
