@@ -8,8 +8,10 @@
 
 #include <cstdint>
 
+// The guards check every symbol instance against memory corruption each time one is read: a diagnostic that cost
+// about a thirtieth of the iOS main thread in the map bench. Build with MLN_SYMBOL_GUARDS=1 to look for corruption.
 #ifndef MLN_SYMBOL_GUARDS
-#define MLN_SYMBOL_GUARDS 1
+#define MLN_SYMBOL_GUARDS 0
 #endif
 
 #if MLN_SYMBOL_GUARDS

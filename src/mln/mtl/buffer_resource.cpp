@@ -118,7 +118,6 @@ void BufferResource::update(const void* newData, std::size_t updateSize, std::si
             }
         }
 
-        auto& device = context.getBackend().getDevice();
         // `[MTLBuffer contents]` may involve memory mapping and/or synchronization.  If the entire
         // buffer is being replaced, avoid accessing the old one by creating the new buffer directly
         // from the given data. If it's just being updated, apply the update to a local buffer to
@@ -138,12 +137,13 @@ void BufferResource::update(const void* newData, std::size_t updateSize, std::si
         }
 
         if (newBufferSource) {
-            auto newBuffer = NS::TransferPtr(device->newBuffer(newBufferSource, size, usage));
+            auto newBuffer = context.takeBuffer(newBufferSource, size, usage);
             if (!newBuffer) {
                 throw std::bad_alloc();
             }
             assert(newBuffer);
             if (newBuffer) {
+                context.recycleBuffer(std::move(buffer), usage);
                 buffer = std::move(newBuffer);
                 stats.totalBuffers++;
                 stats.totalBufferObjs++;

@@ -18,7 +18,9 @@
 #include <mln/renderer/render_tree.hpp>
 
 #include <map>
+#include <array>
 #include <memory>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -228,6 +230,11 @@ private:
 
     CrossTileSymbolIndex crossTileSymbolIndex;
     PlacementController placementController;
+    // What the current placement was made for: the view, the symbol layers, and whether their buckets changed since.
+    // A frame drawn for anything else (a custom layer's animation) neither places again nor keeps the map drawing.
+    std::array<double, 16> placedView{};
+    std::set<std::string> placedLayers;
+    bool symbolsChangedSincePlacement = true;
 
     const bool backgroundLayerAsColor;
     bool contextLost = false;

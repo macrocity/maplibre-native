@@ -50,6 +50,8 @@ public:
 
     virtual ~GeoJSONData() = default;
     virtual void getTile(const CanonicalTileID&, const std::function<void(TileFeatures)>&, bool runSynchronously) = 0;
+    /// No features at all: the source needs no tiles.
+    virtual bool isEmpty() const { return false; }
 
     // SuperclusterData
     virtual Features getChildren(std::uint32_t) = 0;
@@ -66,6 +68,9 @@ public:
     void setURL(const std::string& url);
     void setGeoJSON(const GeoJSON&);
     void setGeoJSONData(std::shared_ptr<GeoJSONData>);
+    /// GeoJSON text, parsed and indexed on a background thread and applied on the calling thread's scheduler,
+    /// unless the source was given other data first. Text that is not GeoJSON leaves the data as it was.
+    void setGeoJSONText(std::shared_ptr<const std::string>);
 
     std::optional<std::string> getURL() const;
     const GeoJSONOptions& getOptions() const;
@@ -89,6 +94,8 @@ private:
     std::optional<std::string> url;
     std::unique_ptr<AsyncRequest> req;
     std::atomic<uint64_t> requestGeneration{0};
+    // Counts each change of the data, so a text parsed in the background is not applied over newer data.
+    uint64_t dataGeneration = 0;
     std::shared_ptr<Scheduler> sequencedScheduler;
     mapbox::base::WeakPtrFactory<Source> weakFactory{this};
     // Do not add members here, see `WeakPtrFactory`

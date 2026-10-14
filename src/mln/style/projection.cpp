@@ -70,7 +70,15 @@ SubdivisionGranularitySetting Projection::Impl::getSubdivisionGranularity() cons
         (type.isConstant() && type.asConstant() == ProjectionDefinition(ProjectionType::Mercator))) {
         return SubdivisionGranularitySetting::none();
     }
-    return SubdivisionGranularitySetting::globe();
+    // The zoom from which every zoom is plain Mercator: a step from the globe to Mercator draws those tiles flat.
+    // A child tile kept on screen just below the step bends its straight edges by well under a metre.
+    uint8_t flatFrom = 32;
+    for (int zoom = 24; zoom >= 0; --zoom) {
+        const auto definition = evaluate(static_cast<float>(zoom));
+        if (definition.from != ProjectionType::Mercator || definition.to != ProjectionType::Mercator) break;
+        flatFrom = static_cast<uint8_t>(zoom);
+    }
+    return SubdivisionGranularitySetting::globe(flatFrom);
 }
 
 ProjectionDefinition Projection::Impl::evaluate(float zoom) const {

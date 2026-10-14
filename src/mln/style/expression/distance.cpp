@@ -765,12 +765,23 @@ double polygonToGeometryDistance(const mapbox::geometry::polygon<double>& polygo
             return isPolygonValid(polygon1) ? polygonToPolygonDistance(polygon, polygon1, ruler) : InvalidDistance;
         },
         [&polygon, &ruler](const mapbox::geometry::multi_polygon<double>& polygons) {
-            double dist = InfiniteDistance;
-            for (const auto& polygon1 : polygons) {
-                if (!isPolygonValid(polygon1)) {
+            // The parts nearest by their boxes first: the polygon a feature lies in answers 0 at once, and a near
+            // distance found early lets every part whose box is farther be skipped. Taken in their own order, the
+            // first part was measured edge by edge however far it was.
+            const auto bbox = getBBox(polygon);
+            std::vector<std::pair<double, std::size_t>> order;
+            order.reserve(polygons.size());
+            for (std::size_t i = 0; i < polygons.size(); ++i) {
+                if (!isPolygonValid(polygons[i])) {
                     return InvalidDistance;
                 }
-                const auto tempDist = polygonToPolygonDistance(polygon, polygon1, ruler, dist);
+                order.emplace_back(bboxToBBoxDistance(bbox, getBBox(polygons[i]), ruler), i);
+            }
+            std::sort(order.begin(), order.end());
+            double dist = InfiniteDistance;
+            for (const auto& [boxDist, i] : order) {
+                if (boxDist >= dist) break;
+                const auto tempDist = polygonToPolygonDistance(polygon, polygons[i], ruler, dist);
                 if (std::isnan(tempDist) || tempDist == 0.0) {
                     return tempDist;
                 }
