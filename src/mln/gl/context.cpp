@@ -535,8 +535,11 @@ void Context::unbindGlobalUniformBuffers(gfx::RenderPass&) const noexcept {
 void Context::setDirtyState() {
     MLN_TRACE_FUNC();
 
-    // Note: does not set viewport/bindFramebuffer to dirty
-    // since they are handled separately in the view object.
+    // The view too: a custom layer may leave a framebuffer or a viewport of its own. The caller binds the view again
+    // after this, and that bind goes through this cache: with a clean cache holding the view's values it made no
+    // GL call, and the layers above the custom layer drew into the custom layer's framebuffer.
+    bindFramebuffer.setDirty();
+    viewport.setDirty();
     stencilFunc.setDirty();
     stencilMask.setDirty();
     stencilTest.setDirty();

@@ -57,11 +57,12 @@ void RenderPluginLayerTweaker::execute([[maybe_unused]] mln::gfx::Drawable& draw
 
     _plugInRenderer->render(paintParameters);
 
-    // Reset the view back to our original one, just in case the CustomLayer
-    // changed the viewport or Framebuffer.
+    // The plugin may have changed any state: forget the cached state first, so that binding the view below reaches
+    // the graphics API. Then reset the view back to our original one, in case the plugin changed the viewport or
+    // framebuffer.
+    context.setDirtyState();
     paintParameters.backend.getDefaultRenderable().getResource<gfx::RenderableResource>().bind();
 
-    context.setDirtyState();
     context.bindGlobalUniformBuffers(*paintParameters.renderPass);
 }
 

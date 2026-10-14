@@ -1066,10 +1066,10 @@ void RenderLocationIndicatorLayer::render(PaintParameters& paintParameters) {
 
     MBGL_CHECK_ERROR(renderImpl->render(renderImpl->parameters));
 
-    // Reset the view back to our original one, just in case the CustomLayer
-    // changed the viewport or Framebuffer.
-    paintParameters.backend.getDefaultRenderable().getResource<gl::RenderableResource>().bind();
+    // Forget the cached state first, so that binding the view below reaches GL. Then reset the view back to our
+    // original one, in case the layer's own GL code changed the viewport or framebuffer.
     glContext.setDirtyState();
+    paintParameters.backend.getDefaultRenderable().getResource<gl::RenderableResource>().bind();
 }
 #endif
 
