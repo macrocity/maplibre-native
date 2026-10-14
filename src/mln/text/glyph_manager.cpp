@@ -9,6 +9,7 @@
 #include <mln/util/tiny_sdf.hpp>
 #include <mln/util/image.hpp>
 #include <mln/util/logging.hpp>
+#include <mln/actor/scheduler.hpp>
 
 #include <fstream>
 
@@ -41,14 +42,25 @@ void GlyphManager::getGlyphs(GlyphRequestor& requestor, GlyphDependencies glyphD
 
             const GlyphIDs& glyphIDs = dependency.second;
             std::unordered_set<GlyphRange> ranges;
+            std::vector<GlyphID> toDraw;
             for (const auto& glyphID : glyphIDs) {
                 if (localGlyphRasterizer->canRasterizeGlyph(fontStack, glyphID)) {
-                    if (entry.glyphs.find(glyphID) == entry.glyphs.end()) {
-                        entry.glyphs.emplace(glyphID, makeMutable<Glyph>(generateLocalSDF(fontStack, glyphID)));
+                    if (entry.glyphs.find(glyphID) != entry.glyphs.end()) continue;
+                    if (auto pending = entry.local.find(glyphID); pending != entry.local.end()) {
+                        pending->second->requestors[&requestor] = dependencies;
+                    } else {
+                        toDraw.push_back(glyphID);
                     }
                 } else {
                     ranges.insert(getGlyphRange(glyphID));
                 }
+            }
+
+            if (!toDraw.empty()) {
+                auto request = std::make_shared<LocalRequest>();
+                request->requestors[&requestor] = dependencies;
+                for (const auto& glyphID : toDraw) entry.local[glyphID] = request;
+                requestLocal(request, fontStack, std::move(toDraw));
             }
 
             for (const auto& range : ranges) {
@@ -69,11 +81,65 @@ void GlyphManager::getGlyphs(GlyphRequestor& requestor, GlyphDependencies glyphD
     }
 }
 
-Glyph GlyphManager::generateLocalSDF(const FontStack& fontStack, GlyphID glyphID) {
-    Glyph local = localGlyphRasterizer->rasterizeGlyph(fontStack, glyphID);
-    const double radius = local.metrics.isDoubleResolution ? 16.0 : 8.0;
-    local.bitmap = util::transformRasterToSDF(local.bitmap, radius, .25);
-    return local;
+// Drawing a local glyph (Core Text, or Android's Canvas, and then its SDF) takes milliseconds, and a font fallback more:
+// on the thread that renders, a few names in a script drawn locally held whole frames. The glyphs are drawn on one
+// background thread instead, and wait there as a glyph range waits for its download.
+void GlyphManager::requestLocal(const std::shared_ptr<LocalRequest>& request,
+                                const FontStack& fontStack,
+                                std::vector<GlyphID> glyphIDs) {
+    // One thread: the rasterizer keeps its fonts unguarded.
+    if (!localScheduler) localScheduler = Scheduler::GetSequenced();
+    std::weak_ptr<bool> weakAlive = alive;
+    localScheduler->scheduleAndReplyValue(
+        util::SimpleIdentity::Empty,
+        [rasterizer = localGlyphRasterizer, fontStack, glyphIDs = std::move(glyphIDs)] {
+            auto glyphs = std::make_shared<std::vector<Glyph>>();
+            glyphs->reserve(glyphIDs.size());
+            for (const auto& glyphID : glyphIDs) {
+                Glyph local;
+                try {
+                    local = rasterizer->rasterizeGlyph(fontStack, glyphID);
+                    const double radius = local.metrics.isDoubleResolution ? 16.0 : 8.0;
+                    local.bitmap = util::transformRasterToSDF(local.bitmap, radius, .25);
+                } catch (...) {
+                    // An empty glyph: the label goes without it, as it would without a range that failed.
+                    Log::Error(Event::General, "Unable to draw a local glyph");
+                    local = Glyph();
+                }
+                local.id = glyphID;
+                glyphs->push_back(std::move(local));
+            }
+            return glyphs;
+        },
+        [this, weakAlive, request, fontStack](const std::shared_ptr<std::vector<Glyph>>& glyphs) {
+            if (weakAlive.expired()) return;
+            processLocal(request, fontStack, *glyphs);
+        });
+}
+
+void GlyphManager::processLocal(const std::shared_ptr<LocalRequest>& request,
+                                const FontStack& fontStack,
+                                std::vector<Glyph>& glyphs) {
+    std::scoped_lock readWriteLock(rwLock);
+    Entry& entry = entries[fontStack];
+    for (auto& glyph : glyphs) {
+        const auto id = glyph.id;
+        if (auto pending = entry.local.find(id); pending != entry.local.end() && pending->second == request) {
+            entry.local.erase(pending);
+        }
+        entry.glyphs.erase(id);
+        entry.glyphs.emplace(id, makeMutable<Glyph>(std::move(glyph)));
+    }
+
+    // As for a range: a requestor whose dependencies no other request holds has all its glyphs now.
+    auto requestors = std::move(request->requestors);
+    request->requestors.clear();
+    for (auto& pair : requestors) {
+        auto dependencies = std::move(pair.second);
+        if (dependencies.use_count() == 1) {
+            notify(*pair.first, *dependencies);
+        }
+    }
 }
 
 void GlyphManager::requestRange(GlyphRequest& request,
@@ -196,6 +262,9 @@ void GlyphManager::removeRequestor(GlyphRequestor& requestor) {
     for (auto& entry : entries) {
         for (auto& range : entry.second.ranges) {
             range.second.requestors.erase(&requestor);
+        }
+        for (auto& local : entry.second.local) {
+            local.second->requestors.erase(&requestor);
         }
     }
 }

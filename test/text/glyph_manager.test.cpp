@@ -1,3 +1,4 @@
+#include <atomic>
 #include <mln/test/util.hpp>
 #include <mln/test/stub_file_source.hpp>
 
@@ -355,6 +356,44 @@ TEST(GlyphManager, LoadLocalCJKSymbols) {
 
     test.run("test/fixtures/resources/glyphs.pbf",
              GlyphDependencies{.glyphs = {{{{"Test Stack"}}, {u'〒', u'！'}}}, .shapes = {}});
+}
+
+class CountingLocalGlyphRasterizer : public StubLocalGlyphRasterizer {
+public:
+    explicit CountingLocalGlyphRasterizer(std::shared_ptr<std::atomic<int>> drawn_)
+        : drawn(std::move(drawn_)) {}
+
+    Glyph rasterizeGlyph(const FontStack& fontStack, GlyphID glyphID) override {
+        ++*drawn;
+        return StubLocalGlyphRasterizer::rasterizeGlyph(fontStack, glyphID);
+    }
+
+    std::shared_ptr<std::atomic<int>> drawn;
+};
+
+TEST(GlyphManager, LocalGlyphDrawnOnceForTwoRequestors) {
+    // A glyph still being drawn off the thread is not drawn again for a second requestor: both wait for it.
+    auto drawn = std::make_shared<std::atomic<int>>(0);
+    GlyphManagerTest test(std::make_unique<CountingLocalGlyphRasterizer>(drawn));
+    StubGlyphRequestor other;
+    int answered = 0;
+    auto check = [&](GlyphMap glyphs) {
+        const auto& testPositions = glyphs.at(FontStackHasher()({{"Test Stack"}}));
+        ASSERT_EQ(testPositions.count(u'中'), 1u);
+        ASSERT_TRUE(testPositions.at(u'中').has_value());
+        EXPECT_EQ((*testPositions.at(u'中'))->id.complex.code, u'中');
+        if (++answered == 2) {
+            EXPECT_EQ(drawn->load(), 1);
+            test.end();
+        }
+    };
+    test.requestor.glyphsAvailable = check;
+    other.glyphsAvailable = check;
+
+    test.glyphManager.getGlyphs(
+        other, GlyphDependencies{.glyphs = {{{{"Test Stack"}}, {u'中'}}}, .shapes = {}}, test.fileSource);
+    test.run("test/fixtures/resources/glyphs.pbf",
+             GlyphDependencies{.glyphs = {{{{"Test Stack"}}, {u'中'}}}, .shapes = {}});
 }
 
 TEST(GlyphManager, LocalCJKGlyphPrefersLocalRasterizationOverRange) {
