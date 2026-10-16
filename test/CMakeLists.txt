@@ -152,6 +152,7 @@ if(MLN_WITH_OPENGL)
             ${PROJECT_SOURCE_DIR}/test/api/custom_layer.test.cpp
             ${PROJECT_SOURCE_DIR}/test/gl/bucket.test.cpp
             ${PROJECT_SOURCE_DIR}/test/gl/vertex_array_binding_cache.test.cpp
+            ${PROJECT_SOURCE_DIR}/test/gl/symbol_sort_output.test.cpp
             ${PROJECT_SOURCE_DIR}/test/gl/enum.test.cpp
             ${PROJECT_SOURCE_DIR}/test/gl/context.test.cpp
             ${PROJECT_SOURCE_DIR}/test/gl/gl_functions.test.cpp

@@ -200,22 +200,20 @@ void SymbolBucket::sortFeatures(const float angle) {
         return;
     }
 
+#if MLN_USE_SYMBOL_INSTANCING
     sortUploaded = false;
     uploaded = false;
-
-#if MLN_USE_SYMBOL_INSTANCING
     auto& textVector = text.sortedInstances();
     auto& iconVector = icon.sortedInstances();
     auto& sdfIconVector = sdfIcon.sortedInstances();
-#else
-    auto& textVector = text.triangles;
-    auto& iconVector = icon.triangles;
-    auto& sdfIconVector = sdfIcon.triangles;
-#endif
-
     textVector.clear();
     iconVector.clear();
     sdfIconVector.clear();
+#else
+    // Camera bearing can change without changing the complete index permutation.
+    // Stage the exact output before IndexVector::clear(), which also destroys its GPU buffer.
+    TriangleIndexVector textVector, iconVector, sdfIconVector;
+#endif
 
     auto symbolsSortOrder = std::make_unique<std::vector<size_t>>();
     symbolsSortOrder->reserve(symbolInstances.size());
@@ -258,7 +256,27 @@ void SymbolBucket::sortFeatures(const float angle) {
         }
     }
 
+    // Query ordering can change even when no glyph/icon has geometry. Always update it.
     featureSortOrder = std::move(symbolsSortOrder);
+#if !MLN_USE_SYMBOL_INSTANCING
+    if (textVector.vector() == text.triangles.vector() && iconVector.vector() == icon.triangles.vector() &&
+        sdfIconVector.vector() == sdfIcon.triangles.vector()) {
+        // Preserve any pre-existing dirty/upload flags as well as all GPU buffer ownership.
+        return;
+    }
+    sortUploaded = false;
+    uploaded = false;
+    const auto replace = [](TriangleIndexVector& destination, const TriangleIndexVector& pending) {
+        destination.clear();
+        const auto& indexes = pending.vector();
+        for (std::size_t i = 0; i < indexes.size(); i += 3) {
+            destination.emplace_back(indexes[i], indexes[i + 1], indexes[i + 2]);
+        }
+    };
+    replace(text.triangles, textVector);
+    replace(icon.triangles, iconVector);
+    replace(sdfIcon.triangles, sdfIconVector);
+#endif
 }
 
 SymbolInstanceReferences SymbolBucket::getSortedSymbols(const float angle) const {
