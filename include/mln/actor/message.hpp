@@ -1,9 +1,15 @@
 #pragma once
 
 #include <future>
+#include <stdexcept>
 #include <utility>
 
 namespace mln {
+
+class ActorUnavailable final : public std::runtime_error {
+public:
+    ActorUnavailable() : std::runtime_error("Actor has gone away") {}
+};
 
 // A movable type-erasing function wrapper. This allows to store arbitrary
 // invocable things (like std::function<>, or the result of a movable-only
@@ -43,7 +49,17 @@ public:
           argsTuple(std::move(argsTuple_)),
           promise(std::move(promise_)) {}
 
-    void operator()() override { promise.set_value(ask(std::make_index_sequence<std::tuple_size_v<ArgsTuple>>())); }
+    ~AskMessageImpl() override {
+        if (!started) {
+            try { promise.set_exception(std::make_exception_ptr(ActorUnavailable())); }
+            catch (...) {} // Destruction cannot throw; promise still reports failure if allocation fails.
+        }
+    }
+
+    void operator()() override {
+        started = true;
+        promise.set_value(ask(std::make_index_sequence<std::tuple_size_v<ArgsTuple>>()));
+    }
 
     template <std::size_t... I>
     ResultType ask(std::index_sequence<I...>) {
@@ -54,6 +70,7 @@ public:
     MemberFn memberFn;
     ArgsTuple argsTuple;
     std::promise<ResultType> promise;
+    bool started = false;
 };
 
 template <class Object, class MemberFn, class ArgsTuple>
@@ -65,7 +82,15 @@ public:
           argsTuple(std::move(argsTuple_)),
           promise(std::move(promise_)) {}
 
+    ~AskMessageImpl() override {
+        if (!started) {
+            try { promise.set_exception(std::make_exception_ptr(ActorUnavailable())); }
+            catch (...) {} // Preserve noexcept destruction, including allocation failure.
+        }
+    }
+
     void operator()() override {
+        started = true;
         ask(std::make_index_sequence<std::tuple_size_v<ArgsTuple>>());
         promise.set_value();
     }
@@ -79,6 +104,7 @@ public:
     MemberFn memberFn;
     ArgsTuple argsTuple;
     std::promise<void> promise;
+    bool started = false;
 };
 
 namespace actor {

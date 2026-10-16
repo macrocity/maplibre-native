@@ -12,6 +12,7 @@
 #include <mln/util/logging.hpp>
 
 #include "android_renderer_backend.hpp"
+#include "renderer_actor_mailbox.hpp"
 #include "attach_env.hpp"
 
 namespace mln {
@@ -157,85 +158,103 @@ const TaggedScheduler& AndroidRendererFrontend::getThreadPool() const {
 }
 
 void AndroidRendererFrontend::setTileCacheEnabled(bool enabled) {
-    mapRenderer.actor().invoke(&Renderer::setTileCacheEnabled, enabled);
+    mapRenderer.setTileCacheEnabled(enabled);
 }
 
 bool AndroidRendererFrontend::getTileCacheEnabled() const {
-    return mapRenderer.actor().ask(&Renderer::getTileCacheEnabled).get();
+    return mapRenderer.getTileCacheEnabled();
 }
 
 void AndroidRendererFrontend::reduceMemoryUse() {
-    mapRenderer.actor().invoke(&Renderer::reduceMemoryUse);
+    return detail::withLiveRenderer([&]() {
+        mapRenderer.actor().invoke(&Renderer::reduceMemoryUse);
+    });
 }
 
 std::vector<Feature> AndroidRendererFrontend::querySourceFeatures(const std::string& sourceID,
                                                                   const SourceQueryOptions& options) const {
-    // Waits for the result from the orchestration thread and returns
-    return mapRenderer.actor().ask(&Renderer::querySourceFeatures, sourceID, options).get();
+    return detail::withLiveRenderer([&]() {
+        // Waits for the result from the orchestration thread and returns
+        return mapRenderer.actor().ask(&Renderer::querySourceFeatures, sourceID, options).get();
+    });
 }
 
 void AndroidRendererFrontend::setFeatureState(const std::string& sourceID,
                                               const std::optional<std::string>& sourceLayerID,
                                               const std::string& featureID,
                                               const FeatureState& state) const {
-    mapRenderer.actor().invoke(&Renderer::setFeatureState, sourceID, sourceLayerID, featureID, state);
+    return detail::withLiveRenderer([&]() {
+        mapRenderer.actor().invoke(&Renderer::setFeatureState, sourceID, sourceLayerID, featureID, state);
+    });
 }
 
 FeatureState AndroidRendererFrontend::getFeatureState(const std::string& sourceID,
                                                       const std::optional<std::string>& sourceLayerID,
                                                       const std::string& featureID) const {
-    auto getFeatureState = static_cast<FeatureState (Renderer::*)(
-        const std::string&, const std::optional<std::string>&, const std::string&) const>(&Renderer::getFeatureState);
-    return mapRenderer.actor().ask(getFeatureState, sourceID, sourceLayerID, featureID).get();
+    return detail::withLiveRenderer([&]() {
+        auto getFeatureState = static_cast<FeatureState (Renderer::*)(
+            const std::string&, const std::optional<std::string>&, const std::string&) const>(&Renderer::getFeatureState);
+        return mapRenderer.actor().ask(getFeatureState, sourceID, sourceLayerID, featureID).get();
+    });
 }
 
 void AndroidRendererFrontend::removeFeatureState(const std::string& sourceID,
                                                  const std::optional<std::string>& sourceLayerID,
                                                  const std::optional<std::string>& featureID,
                                                  const std::optional<std::string>& stateKey) const {
-    mapRenderer.actor().invoke(&Renderer::removeFeatureState, sourceID, sourceLayerID, featureID, stateKey);
+    return detail::withLiveRenderer([&]() {
+        mapRenderer.actor().invoke(&Renderer::removeFeatureState, sourceID, sourceLayerID, featureID, stateKey);
+    });
 }
 
 std::vector<Feature> AndroidRendererFrontend::queryRenderedFeatures(const ScreenBox& box,
                                                                     const RenderedQueryOptions& options) const {
-    // Select the right overloaded method
-    std::vector<Feature> (Renderer::*fn)(const ScreenBox&, const RenderedQueryOptions&)
-        const = &Renderer::queryRenderedFeatures;
+    return detail::withLiveRenderer([&]() {
+        // Select the right overloaded method
+        std::vector<Feature> (Renderer::*fn)(const ScreenBox&, const RenderedQueryOptions&)
+            const = &Renderer::queryRenderedFeatures;
 
-    // Waits for the result from the orchestration thread and returns
-    return mapRenderer.actor().ask(fn, box, options).get();
+        // Waits for the result from the orchestration thread and returns
+        return mapRenderer.actor().ask(fn, box, options).get();
+    });
 }
 
 std::vector<Feature> AndroidRendererFrontend::queryRenderedFeatures(const ScreenCoordinate& point,
                                                                     const RenderedQueryOptions& options) const {
-    // Select the right overloaded method
-    std::vector<Feature> (Renderer::*fn)(const ScreenCoordinate&, const RenderedQueryOptions&)
-        const = &Renderer::queryRenderedFeatures;
+    return detail::withLiveRenderer([&]() {
+        // Select the right overloaded method
+        std::vector<Feature> (Renderer::*fn)(const ScreenCoordinate&, const RenderedQueryOptions&)
+            const = &Renderer::queryRenderedFeatures;
 
-    // Waits for the result from the orchestration thread and returns
-    return mapRenderer.actor().ask(fn, point, options).get();
+        // Waits for the result from the orchestration thread and returns
+        return mapRenderer.actor().ask(fn, point, options).get();
+    });
 }
 
 AnnotationIDs AndroidRendererFrontend::queryPointAnnotations(const ScreenBox& box,
                                                              const std::chrono::milliseconds& timeout) const {
-    // Waits for the result from the orchestration thread and returns
-    auto future = mapRenderer.actor().ask(&Renderer::queryPointAnnotations, box);
-    if (future.wait_for(timeout) != std::future_status::ready) {
-        return {};
-    }
+    return detail::withLiveRenderer([&]() -> AnnotationIDs {
+        // Waits for the result from the orchestration thread and returns
+        auto future = mapRenderer.actor().ask(&Renderer::queryPointAnnotations, box);
+        if (future.wait_for(timeout) != std::future_status::ready) {
+            return {};
+        }
 
-    return future.get();
+        return future.get();
+    });
 }
 
 AnnotationIDs AndroidRendererFrontend::queryShapeAnnotations(const ScreenBox& box,
                                                              const std::chrono::milliseconds& timeout) const {
-    // Waits for the result from the orchestration thread and returns
-    auto future = mapRenderer.actor().ask(&Renderer::queryShapeAnnotations, box);
-    if (future.wait_for(timeout) != std::future_status::ready) {
-        return {};
-    }
+    return detail::withLiveRenderer([&]() -> AnnotationIDs {
+        // Waits for the result from the orchestration thread and returns
+        auto future = mapRenderer.actor().ask(&Renderer::queryShapeAnnotations, box);
+        if (future.wait_for(timeout) != std::future_status::ready) {
+            return {};
+        }
 
-    return future.get();
+        return future.get();
+    });
 }
 
 FeatureExtensionValue AndroidRendererFrontend::queryFeatureExtensions(
@@ -244,9 +263,11 @@ FeatureExtensionValue AndroidRendererFrontend::queryFeatureExtensions(
     const std::string& extension,
     const std::string& extensionField,
     const std::optional<std::map<std::string, mln::Value>>& args) const {
-    return mapRenderer.actor()
-        .ask(&Renderer::queryFeatureExtensions, sourceID, feature, extension, extensionField, args)
-        .get();
+    return detail::withLiveRenderer([&]() {
+        return mapRenderer.actor()
+            .ask(&Renderer::queryFeatureExtensions, sourceID, feature, extension, extensionField, args)
+            .get();
+    });
 }
 
 } // namespace android

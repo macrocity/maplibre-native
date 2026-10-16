@@ -21,6 +21,8 @@ add_library(
     ${PROJECT_SOURCE_DIR}/test/math/wrap.test.cpp
     ${PROJECT_SOURCE_DIR}/test/platform/settings.test.cpp
     ${PROJECT_SOURCE_DIR}/test/plugin/plugin.test.cpp
+    ${PROJECT_SOURCE_DIR}/test/renderer/android_renderer_actor.test.cpp
+    ${PROJECT_SOURCE_DIR}/test/renderer/android_emulator_render_policy.test.cpp
     ${PROJECT_SOURCE_DIR}/test/renderer/feature_tracking.test.cpp
     ${PROJECT_SOURCE_DIR}/test/renderer/image_manager.test.cpp
     ${PROJECT_SOURCE_DIR}/test/renderer/pattern_atlas.test.cpp
@@ -151,6 +153,7 @@ if(MLN_WITH_OPENGL)
         PRIVATE
             ${PROJECT_SOURCE_DIR}/test/api/custom_layer.test.cpp
             ${PROJECT_SOURCE_DIR}/test/gl/bucket.test.cpp
+            ${PROJECT_SOURCE_DIR}/test/gl/vertex_array_binding_cache.test.cpp
             ${PROJECT_SOURCE_DIR}/test/gl/enum.test.cpp
             ${PROJECT_SOURCE_DIR}/test/gl/context.test.cpp
             ${PROJECT_SOURCE_DIR}/test/gl/gl_functions.test.cpp
