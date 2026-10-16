@@ -26,6 +26,18 @@ public:
     void setMaxOverscaleFactorForParentTiles(std::optional<uint8_t> overscaleFactor) noexcept;
     std::optional<uint8_t> getMaxOverscaleFactorForParentTiles() const noexcept;
 
+    std::optional<std::uint32_t> getMaximumInactiveTileCacheSize() const noexcept {
+        return maximumInactiveTiles;
+    }
+    void setMaximumInactiveTileCacheSize(std::optional<std::uint32_t> count) noexcept {
+        if (type != SourceType::Vector) return;
+        maximumInactiveTiles = count ? std::optional<std::uint32_t>{
+                                          *count > Source::maximumInactiveTileCacheSize
+                                              ? Source::maximumInactiveTileCacheSize
+                                              : *count}
+                                    : std::nullopt;
+    }
+
     bool isVolatile() const { return volatileFlag; }
     void setVolatile(bool set) { volatileFlag = set; }
     const SourceType type;
@@ -34,6 +46,7 @@ public:
     virtual bool isUpdateSynchronous() const { return false; }
 
 protected:
+    std::optional<std::uint32_t> maximumInactiveTiles;
     std::optional<uint8_t> prefetchZoomDelta;
     std::optional<uint8_t> maxOverscaleFactor;
     Duration minimumTileUpdateInterval{Duration::zero()};
