@@ -1,4 +1,7 @@
 #include <mln/test/util.hpp>
+#include <mln/annotation/annotation_manager.hpp>
+#include <mln/util/tileset.hpp>
+#include <mln/util/identity.hpp>
 #include <mln/test/vector_tile_test.hpp>
 #include <mln/style/conversion/json.hpp>
 #include <mln/style/conversion/source.hpp>
