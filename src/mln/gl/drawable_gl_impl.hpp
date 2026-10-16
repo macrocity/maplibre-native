@@ -7,6 +7,7 @@
 #include <mln/gl/enum.hpp>
 #include <mln/gl/uniform_buffer_gl.hpp>
 #include <mln/gl/vertex_array.hpp>
+#include <mln/gl/vertex_array_binding_cache.hpp>
 #include <mln/platform/gl_functions.hpp>
 #include <mln/shaders/segment.hpp>
 #include <mln/renderer/paint_parameters.hpp>
@@ -58,6 +59,8 @@ struct DrawableGL::DrawSegmentGL final : public gfx::Drawable::DrawSegment {
 
     const VertexArray& getVertexArray() const { return vertexArray; }
     void setVertexArray(VertexArray&& value) { vertexArray = std::move(value); }
+
+    VertexArrayBindingCache vertexArrayBindings;
 
 protected:
     VertexArray vertexArray;

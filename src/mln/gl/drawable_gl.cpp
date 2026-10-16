@@ -106,6 +106,24 @@ void DrawableGL::updateVertexAttributes(gfx::VertexAttributeArrayPtr vertices,
     gfx::Drawable::setVertexAttributes(std::move(vertices));
     impl->vertexCount = vertexCount;
 
+    // A fresh paint-attribute wrapper does not itself change the VAO. Keep unchanged
+    // segment wrappers; upload() checks the final resolved GPU bindings before reuse.
+    bool sameSegments = indexes && impl->segments.size() == segmentCount;
+    for (std::size_t i = 0; sameSegments && i < segmentCount; ++i) {
+        const auto& previous = *impl->segments[i];
+        const auto& a = previous.getSegment();
+        const auto& b = segments[i];
+        const auto& oldMode = previous.getMode();
+        sameSegments = oldMode.type == mode.type && oldMode.size == mode.size &&
+                       a.vertexOffset == b.vertexOffset && a.indexOffset == b.indexOffset &&
+                       a.vertexLength == b.vertexLength && a.indexLength == b.indexLength &&
+                       a.baseInstance == b.baseInstance && a.instanceCount == b.instanceCount && a.sortKey == b.sortKey;
+    }
+    if (sameSegments) {
+        impl->indexes = std::move(indexes);
+        return;
+    }
+
     std::vector<std::unique_ptr<Drawable::DrawSegment>> drawSegs;
     drawSegs.reserve(segmentCount);
     for (std::size_t i = 0; i < segmentCount; ++i) {
@@ -176,6 +194,7 @@ void DrawableGL::upload(gfx::UploadPass& uploadPass) {
     auto& context = uploadPass.getContext();
     auto& glContext = static_cast<gl::Context&>(context);
     constexpr auto usage = gfx::BufferUsageType::StaticDraw;
+    bool bindingsRebuilt = false;
 
     // Create an index buffer if necessary}
     if (impl->indexes && (!impl->indexes->getBuffer() || impl->indexes->getDirty())) {
@@ -213,6 +232,7 @@ void DrawableGL::upload(gfx::UploadPass& uploadPass) {
                                                                     vertexBuffers);
 
         impl->attributeBuffers = std::move(vertexBuffers);
+        bindingsRebuilt = true;
     }
 
     // Bind a VAO for each group of vertexes described by a segment
@@ -231,13 +251,21 @@ void DrawableGL::upload(gfx::UploadPass& uploadPass) {
             }
         }
 
-        if (!glSeg.getVertexArray().isValid() && impl->indexes) {
-            auto vertexArray = glContext.createVertexArray();
+        if (impl->indexes) {
             const auto& indexBuffer = static_cast<IndexBufferGL&>(*impl->indexes->getBuffer());
-            vertexArray.bind(glContext, *indexBuffer.buffer, impl->attributeBindings);
-            assert(vertexArray.isValid());
-            if (vertexArray.isValid()) {
-                glSeg.setVertexArray(std::move(vertexArray));
+            const auto& indexResource = indexBuffer.buffer->getResource<IndexBufferResource>();
+            if (!glSeg.getVertexArray().isValid() ||
+                !glSeg.vertexArrayBindings.matchesIndex(indexResource) ||
+                (bindingsRebuilt && !glSeg.vertexArrayBindings.matches(indexResource, impl->attributeBindings))) {
+                // Drop the stale VAO before allocation: a failed replacement must not draw old bindings.
+                glSeg.setVertexArray(VertexArray{{nullptr, false}});
+                auto vertexArray = glContext.createVertexArray();
+                vertexArray.bind(glContext, *indexBuffer.buffer, impl->attributeBindings);
+                assert(vertexArray.isValid());
+                if (vertexArray.isValid()) {
+                    glSeg.vertexArrayBindings.remember(indexResource, impl->attributeBindings);
+                    glSeg.setVertexArray(std::move(vertexArray));
+                }
             }
         }
     }
