@@ -23,6 +23,7 @@ add_library(
     ${PROJECT_SOURCE_DIR}/test/plugin/plugin.test.cpp
     ${PROJECT_SOURCE_DIR}/test/renderer/feature_tracking.test.cpp
     ${PROJECT_SOURCE_DIR}/test/renderer/image_manager.test.cpp
+    ${PROJECT_SOURCE_DIR}/test/renderer/line_grouping.test.cpp
     ${PROJECT_SOURCE_DIR}/test/renderer/pattern_atlas.test.cpp
     ${PROJECT_SOURCE_DIR}/test/renderer/renderable.test.cpp
     ${PROJECT_SOURCE_DIR}/test/renderer/shader_registry.test.cpp

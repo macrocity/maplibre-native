@@ -6,7 +6,11 @@ namespace style {
 bool LineLayer::Impl::hasLayoutDifference(const Layer::Impl& other) const {
     assert(other.getTypeInfo() == getTypeInfo());
     const auto& impl = static_cast<const style::LineLayer::Impl&>(other);
-    return filter != impl.filter || visibility != impl.visibility || layout != impl.layout ||
+    return filter != impl.filter || hasLayoutDifferenceIgnoringFilter(impl);
+}
+
+bool LineLayer::Impl::hasLayoutDifferenceIgnoringFilter(const LineLayer::Impl& impl) const {
+    return visibility != impl.visibility || layout != impl.layout ||
            paint.hasDataDrivenPropertyDifference(impl.paint);
 }
 

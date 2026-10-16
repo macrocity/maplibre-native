@@ -2,6 +2,7 @@
 #include <mln/util/hash.hpp>
 #include <mln/util/instrumentation.hpp>
 #include <mln/style/filter.hpp>
+#include <mln/style/layers/line_layer_impl.hpp>
 
 #include <mln/style/conversion/stringify.hpp>
 #include <mln/util/rapidjson.hpp>
@@ -29,6 +30,12 @@ bool LayoutGroupKey::operator==(const LayoutGroupKey& other) const {
         if (*filterExpression != *other.filterExpression) return false;
     }
 
+    // Only line grouping uses structural filter equality. The global Filter comparison and
+    // source relayout detection retain their existing identity-based behavior.
+    if (typeInfo == style::LineLayer::Impl::staticTypeInfo()) {
+        return !static_cast<const style::LineLayer::Impl&>(*impl).hasLayoutDifferenceIgnoringFilter(
+            static_cast<const style::LineLayer::Impl&>(*other.impl));
+    }
     return !impl->hasLayoutDifference(*other.impl);
 }
 
@@ -76,10 +83,15 @@ std::size_t std::hash<mln::LayoutGroupKey>::operator()(const mln::LayoutGroupKey
     hash_combine(seed, std::hash<float>{}(key.minZoom));
     hash_combine(seed, std::hash<float>{}(key.maxZoom));
     hash_combine(seed, static_cast<bool>(key.visibility));
-    hash_combine(seed, reinterpret_cast<std::size_t>(key.filterExpression.get()));
+    // Line filters can be structurally equal at different addresses. Omitting their filter
+    // from the hash is deliberate: equality still checks the complete expression. Avoid
+    // serialization/canonicalization costs and preserve hashing for all other layer types.
+    if (key.typeInfo != mln::style::LineLayer::Impl::staticTypeInfo()) {
+        hash_combine(seed, reinterpret_cast<std::size_t>(key.filterExpression.get()));
+    }
 
     // Note: We intentionally DON'T hash the layout here
-    // This means keys with same source/zoom/type/filter but different layouts
+    // This means keys with same source/zoom/type (and non-line filter) but different layouts
     // will hash to the same bucket, then operator== distinguishes them
 
     return seed;

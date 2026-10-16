@@ -12,6 +12,9 @@ public:
     using Layer::Impl::Impl;
 
     bool hasLayoutDifference(const Layer::Impl&) const override;
+    // Internal grouping contract: caller has already compared filters structurally.
+    // All other geometry-affecting layout and data-driven paint checks are shared.
+    bool hasLayoutDifferenceIgnoringFilter(const LineLayer::Impl&) const;
     void stringifyLayout(rapidjson::Writer<rapidjson::StringBuffer>&) const override;
 
     expression::Dependency getDependencies() const noexcept override {
