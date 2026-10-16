@@ -11,80 +11,96 @@ GuestAngleDrawableReuseInputs verifiedDriver() {
 }
 }
 
-TEST(GuestAngleDrawableReuse, ExplicitOptInOnly) {
+TEST(GuestAngleDrawableReuse, AutomaticAndExplicitOptInUseSameStrictGuard) {
     auto inputs = verifiedDriver();
-    for (auto value : {"", "0", "true", "yes", " 1", "1 "}) {
-        inputs.optIn = value;
+    for (auto value : {"", "1"}) {
+        inputs.overrideValue = value;
+        EXPECT_EQ(GuestAngleDrawableReuseDecision::Enabled, guestAngleDrawableReuseDecision(inputs));
+    }
+    for (auto value : {"0", "true", "false", "yes", "auto", "01", " 1", "1 ", "\t1"}) {
+        inputs.overrideValue = value;
         EXPECT_EQ(GuestAngleDrawableReuseDecision::Disabled, guestAngleDrawableReuseDecision(inputs));
     }
-    inputs.optIn = "1";
-    EXPECT_EQ(GuestAngleDrawableReuseDecision::Enabled, guestAngleDrawableReuseDecision(inputs));
 }
 
 TEST(GuestAngleDrawableReuse, EmulatorApiAndCurrentContextRequired) {
-    auto inputs = verifiedDriver();
-    inputs.emulator = false;
-    EXPECT_EQ(GuestAngleDrawableReuseDecision::NotEmulator, guestAngleDrawableReuseDecision(inputs));
-    inputs = verifiedDriver();
-    for (int api : {0, 23, 32, 34, 36}) {
-        inputs.apiLevel = api;
-        EXPECT_EQ(GuestAngleDrawableReuseDecision::UnsupportedApi, guestAngleDrawableReuseDecision(inputs));
+    for (auto mode : {"", "1"}) {
+        auto inputs = verifiedDriver();
+        inputs.overrideValue = mode;
+        inputs.emulator = false;
+        EXPECT_EQ(GuestAngleDrawableReuseDecision::NotEmulator, guestAngleDrawableReuseDecision(inputs));
+        inputs.emulator = true;
+        for (int api : {0, 23, 32, 34, 36}) {
+            inputs.apiLevel = api;
+            EXPECT_EQ(GuestAngleDrawableReuseDecision::UnsupportedApi, guestAngleDrawableReuseDecision(inputs));
+        }
+        inputs.apiLevel = 35;
+        inputs.hasCurrentContext = false;
+        EXPECT_EQ(GuestAngleDrawableReuseDecision::NoContext, guestAngleDrawableReuseDecision(inputs));
     }
-    inputs = verifiedDriver();
-    inputs.hasCurrentContext = false;
-    EXPECT_EQ(GuestAngleDrawableReuseDecision::NoContext, guestAngleDrawableReuseDecision(inputs));
 }
 
 TEST(GuestAngleDrawableReuse, BothEglPropertiesRequired) {
-    auto inputs = verifiedDriver();
-    for (auto value : {"", "emulation", "swiftshader", "ANGLE"}) {
-        inputs.hardwareEgl = value;
-        EXPECT_EQ(GuestAngleDrawableReuseDecision::WrongEgl, guestAngleDrawableReuseDecision(inputs));
-        inputs = verifiedDriver();
-        inputs.bootHardwareEgl = value;
-        EXPECT_EQ(GuestAngleDrawableReuseDecision::WrongEgl, guestAngleDrawableReuseDecision(inputs));
-        inputs = verifiedDriver();
+    for (auto mode : {"", "1"}) {
+        for (auto value : {"", "emulation", "swiftshader", "ANGLE"}) {
+            auto inputs = verifiedDriver();
+            inputs.overrideValue = mode;
+            inputs.hardwareEgl = value;
+            EXPECT_EQ(GuestAngleDrawableReuseDecision::WrongEgl, guestAngleDrawableReuseDecision(inputs));
+            inputs.hardwareEgl = "angle";
+            inputs.bootHardwareEgl = value;
+            EXPECT_EQ(GuestAngleDrawableReuseDecision::WrongEgl, guestAngleDrawableReuseDecision(inputs));
+        }
     }
 }
 
 TEST(GuestAngleDrawableReuse, UnknownSoftwareAndClassicDriversKeepMitigation) {
-    auto inputs = verifiedDriver();
-    for (auto value : {"", "Apple", "Google Inc.", "ARM"}) {
-        inputs.vendor = value;
-        EXPECT_EQ(GuestAngleDrawableReuseDecision::WrongDriver, guestAngleDrawableReuseDecision(inputs));
-    }
-    inputs = verifiedDriver();
-    for (auto value : {"", "Android Emulator OpenGL ES Translator (Apple M3 Pro)",
-                       "ANGLE (Apple, OpenGL ES 3.1 (Apple M3 Pro (0x1A070209)))",
-                       "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device))",
-                       "ANGLE (Apple, Vulkan 1.3.0 (Apple M4 Pro (0x1A070209)))",
-                       "ANGLE (Apple, Vulkan 1.3.0 (Apple M3 Pro (SwiftShader)))",
-                       "ANGLE (Apple, Vulkan 1.3.0 (Apple M3 Pro (Translator)))",
-                       "ANGLE (Apple, Vulkan 1.3.0 (Apple M3 Pro (llvmpipe)))",
-                       "ANGLE (Apple, Vulkan 1.3.0 (Apple M3 Pro (lavapipe)))"}) {
-        inputs.renderer = value;
-        EXPECT_EQ(GuestAngleDrawableReuseDecision::WrongDriver, guestAngleDrawableReuseDecision(inputs));
-    }
-    inputs = verifiedDriver();
-    for (auto value : {"", "OpenGL ES 2.0", "Vulkan 1.3.0"}) {
-        inputs.version = value;
-        EXPECT_EQ(GuestAngleDrawableReuseDecision::WrongDriver, guestAngleDrawableReuseDecision(inputs));
+    for (auto mode : {"", "1"}) {
+        auto inputs = verifiedDriver();
+        inputs.overrideValue = mode;
+        for (auto value : {"", "Apple", "Google Inc.", "ARM"}) {
+            inputs.vendor = value;
+            EXPECT_EQ(GuestAngleDrawableReuseDecision::WrongDriver, guestAngleDrawableReuseDecision(inputs));
+        }
+        inputs.vendor = "Google Inc. (Apple)";
+        for (auto value : {"", "Android Emulator OpenGL ES Translator (Apple M3 Pro)",
+                           "ANGLE (Apple, OpenGL ES 3.1 (Apple M3 Pro (0x1A070209)))",
+                           "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device))",
+                           "ANGLE (Apple, Vulkan 1.3.0 (Apple M4 Pro (0x1A070209)))",
+                           "ANGLE (Apple, Vulkan 1.3.0 (Apple M3 Pro (SwiftShader)))",
+                           "ANGLE (Apple, Vulkan 1.3.0 (Apple M3 Pro (Translator)))",
+                           "ANGLE (Apple, Vulkan 1.3.0 (Apple M3 Pro (llvmpipe)))",
+                           "ANGLE (Apple, Vulkan 1.3.0 (Apple M3 Pro (lavapipe)))"}) {
+            inputs.renderer = value;
+            EXPECT_EQ(GuestAngleDrawableReuseDecision::WrongDriver, guestAngleDrawableReuseDecision(inputs));
+        }
+        inputs.renderer = verifiedDriver().renderer;
+        for (auto value : {"", "OpenGL ES 2.0", "Vulkan 1.3.0"}) {
+            inputs.version = value;
+            EXPECT_EQ(GuestAngleDrawableReuseDecision::WrongDriver, guestAngleDrawableReuseDecision(inputs));
+        }
     }
 }
 
 TEST(GuestAngleDrawableReuse, ContextRecreationAndOptOutReevaluateWithoutStickyState) {
-    const auto good = verifiedDriver();
-    EXPECT_EQ(GuestAngleDrawableReuseDecision::Enabled, guestAngleDrawableReuseDecision(good));
-    auto lost = good;
-    lost.hasCurrentContext = false;
-    EXPECT_NE(GuestAngleDrawableReuseDecision::Enabled, guestAngleDrawableReuseDecision(lost));
-    auto replacement = good;
-    replacement.renderer = "Android Emulator OpenGL ES Translator (Apple M3 Pro)";
-    EXPECT_NE(GuestAngleDrawableReuseDecision::Enabled, guestAngleDrawableReuseDecision(replacement));
-    EXPECT_EQ(GuestAngleDrawableReuseDecision::Enabled, guestAngleDrawableReuseDecision(good));
-    auto disabled = good;
-    disabled.optIn = "0";
-    EXPECT_EQ(GuestAngleDrawableReuseDecision::Disabled, guestAngleDrawableReuseDecision(disabled));
+    for (auto mode : {"", "1"}) {
+        auto good = verifiedDriver();
+        good.overrideValue = mode;
+        EXPECT_EQ(GuestAngleDrawableReuseDecision::Enabled, guestAngleDrawableReuseDecision(good));
+        auto lost = good;
+        lost.hasCurrentContext = false;
+        EXPECT_NE(GuestAngleDrawableReuseDecision::Enabled, guestAngleDrawableReuseDecision(lost));
+        auto replacement = good;
+        replacement.renderer = "Android Emulator OpenGL ES Translator (Apple M3 Pro)";
+        EXPECT_NE(GuestAngleDrawableReuseDecision::Enabled, guestAngleDrawableReuseDecision(replacement));
+        EXPECT_EQ(GuestAngleDrawableReuseDecision::Enabled, guestAngleDrawableReuseDecision(good));
+        for (auto value : {"0", "unknown"}) {
+            auto disabled = good;
+            disabled.overrideValue = value;
+            EXPECT_EQ(GuestAngleDrawableReuseDecision::Disabled, guestAngleDrawableReuseDecision(disabled));
+        }
+        EXPECT_EQ(GuestAngleDrawableReuseDecision::Enabled, guestAngleDrawableReuseDecision(good));
+    }
 }
 
 #if MLN_RENDER_BACKEND_OPENGL
@@ -142,10 +158,18 @@ TEST(GuestAngleDrawableReuse, ActualRendererPixelsAndQueriesMatchBothPaths) {
         result.changed = std::move(changed.image);
         return result;
     };
-    const auto retained = run(false);
-    const auto discarded = run(true);
+    auto inputs = verifiedDriver();
+    const auto retained = run(guestAngleDrawableReuseDecision(inputs) != GuestAngleDrawableReuseDecision::Enabled);
+    inputs.overrideValue = "";
+    const auto automatic = run(guestAngleDrawableReuseDecision(inputs) != GuestAngleDrawableReuseDecision::Enabled);
+    inputs.overrideValue = "0";
+    const auto discarded = run(guestAngleDrawableReuseDecision(inputs) != GuestAngleDrawableReuseDecision::Enabled);
     ASSERT_TRUE(retained.warm.valid());
     ASSERT_TRUE(retained.changed.valid());
+    EXPECT_EQ(automatic.warm, retained.warm);
+    EXPECT_EQ(automatic.repeated, retained.repeated);
+    EXPECT_EQ(automatic.changed, retained.changed);
+    EXPECT_EQ(automatic.queried, retained.queried);
     EXPECT_EQ(discarded.warm, retained.warm);
     EXPECT_EQ(discarded.repeated, retained.repeated);
     EXPECT_EQ(discarded.changed, retained.changed);

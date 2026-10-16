@@ -328,11 +328,10 @@ void MapRenderer::onSurfaceCreated(JNIEnv& env, const jni::Object<AndroidSurface
     rendererMailbox.open(*this);
 
 #if MLN_RENDER_BACKEND_OPENGL
-    // If we're running the emulator with the OpenGL backend, we're going to crash eventually,
-    // unless we enable this mitigation.
+    // Keep the classic emulator mitigation except for the strictly verified hardware Guest ANGLE stack.
     if (inEmulator()) {
-        // Default stays ON. Re-evaluate this opt-in against the actual current driver on every context creation.
-        const auto optIn = androidSysProp("debug.mln.guest_angle_reuse");
+        // Re-evaluate the automatic/default or explicit override against the current driver on each context creation.
+        const auto overrideValue = androidSysProp("debug.mln.guest_angle_reuse");
         const auto hardwareEgl = androidSysProp("ro.hardware.egl");
         const auto bootHardwareEgl = androidSysProp("ro.boot.hardwareegl");
         const bool current = eglGetCurrentContext() != EGL_NO_CONTEXT;
@@ -344,7 +343,7 @@ void MapRenderer::onSurfaceCreated(JNIEnv& env, const jni::Object<AndroidSurface
         const auto vendor = glString(0x1F00);   // GL_VENDOR
         const auto driver = glString(0x1F01);   // GL_RENDERER
         const auto version = glString(0x1F02); // GL_VERSION
-        const auto decision = detail::guestAngleDrawableReuseDecision({optIn,
+        const auto decision = detail::guestAngleDrawableReuseDecision({overrideValue,
                                                                      true,
                                                                      android_get_device_api_level(),
                                                                      current,

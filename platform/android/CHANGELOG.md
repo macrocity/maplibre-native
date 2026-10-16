@@ -4,6 +4,8 @@
 
 ### ✨ Features and improvements
 
+- Avoid rebuilding drawables every frame on the verified Android API 35 hardware Guest ANGLE/Apple M3 Pro Vulkan emulator stack. Other drivers keep the existing mitigation; set `debug.mln.guest_angle_reuse=0` to opt out.
+
 - feat(core): render the map as a globe when the style sets `"projection": {"type": "globe"}` ([#4533](https://github.com/maplibre/maplibre-native/pull/4533)).
 
 ## 13.6.1

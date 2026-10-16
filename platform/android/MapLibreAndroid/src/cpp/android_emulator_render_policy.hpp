@@ -4,9 +4,10 @@
 
 namespace mln::android::detail {
 
-// An opt-in experiment for one verified API35 hardware Guest ANGLE stack. Unknown drivers keep the workaround.
+// Automatically retain drawables only on the verified API35 hardware Guest ANGLE stack.
+// Empty selects automatic detection; "1" requests the same guarded path. Every other value opts out.
 struct GuestAngleDrawableReuseInputs {
-    std::string_view optIn;
+    std::string_view overrideValue;
     bool emulator = false;
     int apiLevel = 0;
     bool hasCurrentContext = false;
@@ -21,7 +22,7 @@ enum class GuestAngleDrawableReuseDecision { Disabled, NotEmulator, UnsupportedA
 
 inline GuestAngleDrawableReuseDecision guestAngleDrawableReuseDecision(const GuestAngleDrawableReuseInputs& in) {
     using Decision = GuestAngleDrawableReuseDecision;
-    if (in.optIn != "1") return Decision::Disabled;
+    if (!in.overrideValue.empty() && in.overrideValue != "1") return Decision::Disabled;
     if (!in.emulator) return Decision::NotEmulator;
     if (in.apiLevel != 35) return Decision::UnsupportedApi;
     if (!in.hasCurrentContext) return Decision::NoContext;
