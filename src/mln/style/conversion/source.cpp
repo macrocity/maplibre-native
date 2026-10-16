@@ -12,6 +12,8 @@
 #include <mln/style/sources/image_source.hpp>
 #include <mln/util/geo.hpp>
 
+#include <cmath>
+
 namespace mln {
 namespace style {
 namespace conversion {
@@ -126,7 +128,17 @@ std::optional<std::unique_ptr<Source>> convertVectorSource(const std::string& id
             return std::nullopt;
         }
     }
-    return {std::make_unique<VectorSource>(id, std::move(*urlOrTileset), maxzoom, minzoom, encoding)};
+    auto source = std::make_unique<VectorSource>(id, std::move(*urlOrTileset), maxzoom, minzoom, encoding);
+    if (const auto cacheValue = objectMember(value, "maplibre:inactive-tile-cache-size")) {
+        const auto count = toNumber(*cacheValue);
+        if (!count || !std::isfinite(*count) || *count < 0 ||
+            *count > Source::maximumInactiveTileCacheSize || std::floor(*count) != *count) {
+            error.message = "maplibre:inactive-tile-cache-size must be an integer between 0 and 8";
+            return std::nullopt;
+        }
+        source->setMaximumInactiveTileCacheSize(static_cast<std::uint32_t>(*count));
+    }
+    return {std::move(source)};
 }
 
 std::optional<std::unique_ptr<Source>> convertGeoJSONSource(const std::string& id,

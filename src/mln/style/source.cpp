@@ -40,6 +40,20 @@ void Source::setVolatile(bool set) noexcept {
     observer->onSourceChanged(*this);
 }
 
+void Source::setMaximumInactiveTileCacheSize(std::optional<std::uint32_t> count) noexcept {
+    if (getType() != SourceType::Vector) return;
+    if (count && *count > maximumInactiveTileCacheSize) count = maximumInactiveTileCacheSize;
+    if (getMaximumInactiveTileCacheSize() == count) return;
+    auto newImpl = createMutable();
+    newImpl->setMaximumInactiveTileCacheSize(count);
+    baseImpl = std::move(newImpl);
+    observer->onSourceChanged(*this);
+}
+
+std::optional<std::uint32_t> Source::getMaximumInactiveTileCacheSize() const noexcept {
+    return baseImpl->getMaximumInactiveTileCacheSize();
+}
+
 void Source::setObserver(SourceObserver* observer_) {
     observer = observer_ ? observer_ : &nullObserver;
 }

@@ -62,6 +62,18 @@ void TilePyramid::update(const std::vector<Immutable<style::LayerProperties>>& l
                          const Range<uint8_t> zoomRange,
                          std::optional<LatLngBounds> bounds,
                          std::function<std::unique_ptr<Tile>(const OverscaledTileID&, TileObserver*)> createTile) {
+    // Explicit vector-source limits override the global default, including explicit zero.
+    // Apply before the hidden-source early return, so a lowered limit (or removing an opt-in
+    // while the global default is disabled) evicts promptly.
+    const auto explicitCacheSize = sourceImpl.type == SourceType::Vector
+                                       ? sourceImpl.getMaximumInactiveTileCacheSize()
+                                       : std::nullopt;
+    if (explicitCacheSize) {
+        cache.setSize(*explicitCacheSize);
+    } else if (!cacheEnabled || sourceImpl.type == SourceType::Annotations) {
+        cache.setSize(0);
+    }
+
     const auto& subdivisionGranularity = parameters.subdivisionGranularity;
     const bool relayout = needsRelayout || subdivisionGranularity != lastSubdivisionGranularity;
     lastSubdivisionGranularity = subdivisionGranularity;
@@ -246,13 +258,13 @@ void TilePyramid::update(const std::vector<Immutable<style::LayerProperties>>& l
         }
     }
 
-    if (type != SourceType::Annotations && cacheEnabled) {
+    if (!explicitCacheSize && type != SourceType::Annotations && cacheEnabled) {
         auto conservativeCacheSize = static_cast<size_t>(
             std::max(static_cast<double>(parameters.transformState.getSize().width) / tileSize, 1.0) *
             std::max(static_cast<double>(parameters.transformState.getSize().height) / tileSize, 1.0) *
             (parameters.transformState.getMaxZoom() - parameters.transformState.getMinZoom() + 1) * 0.5);
         cache.setSize(conservativeCacheSize);
-    } else {
+    } else if (!explicitCacheSize) {
         cache.setSize(0);
     }
 
@@ -429,6 +441,8 @@ void TilePyramid::setCacheEnabled(bool enable) {
 
 void TilePyramid::reduceMemoryUse() {
     cache.clear();
+    // A trim must dispatch retirement even when no further frame/update arrives.
+    cache.deferPendingReleases();
 }
 
 void TilePyramid::setObserver(TileObserver* observer_) {

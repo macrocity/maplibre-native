@@ -7,6 +7,7 @@
 #include <mapbox/std/weak.hpp>
 #include <mapbox/util/type_wrapper.hpp>
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <optional>
@@ -79,6 +80,14 @@ public:
     // The data from the volatile sources are not stored in a persistent storage.
     bool isVolatile() const noexcept;
     void setVolatile(bool) noexcept;
+
+    /// Optional explicit inactive-tile COUNT for this vector source; absent uses the map default.
+    /// Explicit zero disables retention even when the map default is enabled. An explicit nonzero
+    /// value opts in independently of that default. Values are clamped to eight; this is not a byte budget.
+    /// Source JSON accepts "maplibre:inactive-tile-cache-size" (integer 0..8).
+    static constexpr std::uint32_t maximumInactiveTileCacheSize = 8;
+    void setMaximumInactiveTileCacheSize(std::optional<std::uint32_t>) noexcept;
+    std::optional<std::uint32_t> getMaximumInactiveTileCacheSize() const noexcept;
 
     // Private implementation
     /// @cond FALSE

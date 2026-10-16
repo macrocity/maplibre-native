@@ -92,6 +92,7 @@ add_library(
     ${PROJECT_SOURCE_DIR}/test/tile/raster_dem_tile.test.cpp
     ${PROJECT_SOURCE_DIR}/test/tile/raster_tile.test.cpp
     ${PROJECT_SOURCE_DIR}/test/tile/tile_cache.test.cpp
+    ${PROJECT_SOURCE_DIR}/test/tile/inactive_tile_cache.test.cpp
     ${PROJECT_SOURCE_DIR}/test/tile/tile_coordinate.test.cpp
     ${PROJECT_SOURCE_DIR}/test/tile/tile_id.test.cpp
     ${PROJECT_SOURCE_DIR}/test/tile/tile_lod.test.cpp
