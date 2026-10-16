@@ -1,6 +1,7 @@
 #pragma once
 
 #include <mln/actor/actor_ref.hpp>
+#include "renderer_actor_mailbox.hpp"
 #include <mln/actor/scheduler.hpp>
 #include <mln/util/image.hpp>
 
@@ -72,6 +73,10 @@ public:
     // any thread.
     ActorRef<Renderer> actor() const;
 
+    // Persistent map-level intent, including before the first GL surface exists.
+    void setTileCacheEnabled(bool);
+    bool getTileCacheEnabled() const;
+
     // From Scheduler. Schedules by using callbacks to the
     // JVM to process the mailbox on the right thread.
     void schedule(std::function<void()>&& scheduled) override;
@@ -116,6 +121,7 @@ private:
 
     // Resets the renderer
     void resetRenderer();
+    void applyTileCachePolicy();
 
     // Renders a frame.
     void render(JNIEnv&);
@@ -141,12 +147,14 @@ private:
     TaggedScheduler threadPool;
     const MailboxData mailboxData;
 
-    std::mutex initialisationMutex;
+    mutable std::mutex initialisationMutex;
     std::shared_ptr<RendererObserver> rendererObserver;
 
     std::unique_ptr<AndroidRendererBackend> backend;
     std::unique_ptr<Renderer> renderer;
-    std::unique_ptr<ActorRef<Renderer>> rendererRef;
+    // Declared after renderer so actor cancellation precedes renderer destruction.
+    detail::RendererActorMailbox rendererMailbox;
+    detail::RendererTileCachePolicy tileCachePolicy;
 
     using UniqueANativeWindow = std::unique_ptr<ANativeWindow, std::function<void(ANativeWindow*)>>;
     UniqueANativeWindow window;

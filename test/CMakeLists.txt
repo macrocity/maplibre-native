@@ -21,6 +21,7 @@ add_library(
     ${PROJECT_SOURCE_DIR}/test/math/wrap.test.cpp
     ${PROJECT_SOURCE_DIR}/test/platform/settings.test.cpp
     ${PROJECT_SOURCE_DIR}/test/plugin/plugin.test.cpp
+    ${PROJECT_SOURCE_DIR}/test/renderer/android_renderer_actor.test.cpp
     ${PROJECT_SOURCE_DIR}/test/renderer/android_emulator_render_policy.test.cpp
     ${PROJECT_SOURCE_DIR}/test/renderer/feature_tracking.test.cpp
     ${PROJECT_SOURCE_DIR}/test/renderer/image_manager.test.cpp

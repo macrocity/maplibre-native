@@ -4,6 +4,7 @@
 #include <mln/actor/message.hpp>
 
 #include <memory>
+#include <stdexcept>
 
 namespace mln {
 
@@ -46,7 +47,7 @@ public:
         if (auto mailbox = weakMailbox.lock()) {
             mailbox->push(actor::makeMessage(std::move(promise), *object, fn, std::forward<Args>(args)...));
         } else {
-            promise.set_exception(std::make_exception_ptr(std::runtime_error("Actor has gone away")));
+            promise.set_exception(std::make_exception_ptr(ActorUnavailable()));
         }
 
         return future;

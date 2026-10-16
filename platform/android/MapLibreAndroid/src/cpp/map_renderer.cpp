@@ -70,7 +70,12 @@ void MapRenderer::reset() {
     try {
         destroyed = true;
 
-        if (renderer) {
+        bool hasRenderer;
+        {
+            std::scoped_lock lock(initialisationMutex);
+            hasRenderer = static_cast<bool>(renderer);
+        }
+        if (hasRenderer) {
             // Make sure to destroy the renderer on the GL Thread
             auto self = ActorRef<MapRenderer>(*this, mailboxData.getMailbox());
             self.ask(&MapRenderer::resetRenderer).wait();
@@ -85,7 +90,29 @@ void MapRenderer::reset() {
 }
 
 ActorRef<Renderer> MapRenderer::actor() const {
-    return *rendererRef;
+    std::scoped_lock lock(initialisationMutex);
+    if (destroyed || !renderer) throw ActorUnavailable();
+    return rendererMailbox.ref(*renderer);
+}
+
+void MapRenderer::setTileCacheEnabled(bool enabled) {
+    std::scoped_lock lock(initialisationMutex);
+    if (destroyed) return;
+    tileCachePolicy.set(enabled);
+    // The stable control mailbox targets MapRenderer, never a retired Renderer.
+    // Keep publication/order under one lock; no future wait occurs here.
+    auto self = ActorRef<MapRenderer>(*this, mailboxData.getMailbox());
+    self.invoke(&MapRenderer::applyTileCachePolicy);
+}
+
+bool MapRenderer::getTileCacheEnabled() const {
+    std::scoped_lock lock(initialisationMutex);
+    return tileCachePolicy.get();
+}
+
+void MapRenderer::applyTileCachePolicy() {
+    std::scoped_lock lock(initialisationMutex);
+    if (!destroyed && renderer) tileCachePolicy.apply(*renderer);
 }
 
 void MapRenderer::schedule(std::function<void()>&& scheduled) {
@@ -199,6 +226,8 @@ void MapRenderer::requestSnapshot(SnapshotCallback callback) {
 // Called on OpenGL thread //
 
 void MapRenderer::resetRenderer() {
+    std::scoped_lock lock(initialisationMutex);
+    rendererMailbox.close();
     renderer.reset();
 
     if (!asyncRendererCleanup) {
@@ -258,6 +287,7 @@ void MapRenderer::render(JNIEnv&) {
 void MapRenderer::onSurfaceCreated(JNIEnv& env, const jni::Object<AndroidSurface>& surface) {
     // Lock as the initialization can come from the main thread or the GL thread first
     std::scoped_lock lock(initialisationMutex);
+    if (destroyed) return;
 
     UniqueANativeWindow window_ = nullptr;
 
@@ -267,12 +297,14 @@ void MapRenderer::onSurfaceCreated(JNIEnv& env, const jni::Object<AndroidSurface
             [](ANativeWindow* window_) { ANativeWindow_release(window_); });
     }
 
-    if (backend) {
-        if (backend->createSurface(window_.get())) {
-            window = std::move(window_);
-            return;
-        }
+    if (backend && backend->createSurface(window_.get())) {
+        window = std::move(window_);
+        return;
+    }
 
+    // Retire the actor before mutating any state owned by its old Renderer.
+    rendererMailbox.close();
+    if (backend) {
         // The android system will have already destroyed the underlying
         // GL resources if this is not the first initialization and an
         // attempt to clean them up will fail
@@ -292,7 +324,8 @@ void MapRenderer::onSurfaceCreated(JNIEnv& env, const jni::Object<AndroidSurface
     // Create the new backend and renderer
     backend = AndroidRendererBackend::Create(window.get());
     renderer = std::make_unique<Renderer>(backend->getImpl(), pixelRatio, localIdeographFontFamily);
-    rendererRef = std::make_unique<ActorRef<Renderer>>(*renderer, mailboxData.getMailbox());
+    tileCachePolicy.apply(*renderer);
+    rendererMailbox.open(*this);
 
 #if MLN_RENDER_BACKEND_OPENGL
     // If we're running the emulator with the OpenGL backend, we're going to crash eventually,

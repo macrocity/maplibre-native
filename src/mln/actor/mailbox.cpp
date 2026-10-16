@@ -45,6 +45,10 @@ void Mailbox::open(Scheduler& scheduler_) {
 void Mailbox::close() {
     abandon();
 
+    // Destroy cancelled asks after releasing the mailbox locks. They must become
+    // ready even if another owner temporarily retains this closed mailbox.
+    std::queue<std::unique_ptr<Message>> cancelled;
+
     // Block until neither receive() nor push() are in progress. Two mutexes are
     // used because receive() must not block send(). Of the two, the receiving
     // mutex must be acquired first, because that is the order that an actor
@@ -57,6 +61,10 @@ void Mailbox::close() {
     closed = true;
 
     weakScheduler = {};
+    {
+        std::scoped_lock queueLock(queueMutex);
+        queue.swap(cancelled);
+    }
 }
 
 void Mailbox::abandon() {
