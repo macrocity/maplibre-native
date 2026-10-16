@@ -104,9 +104,9 @@ TEST(InactiveTileCache, ImmutableCopyClampAndStyleDiff) {
     EXPECT_EQ(source.getMaximumInactiveTileCacheSize(), 8u);
     source.setTiles({"new"});
     EXPECT_EQ(source.getMaximumInactiveTileCacheSize(), 8u);
-    auto before = makeMutable<std::vector<ImmutableSource>>(std::vector<ImmutableSource>{source.baseImpl});
+    Immutable<std::vector<ImmutableSource>> before = makeMutable<std::vector<ImmutableSource>>(std::vector<ImmutableSource>{source.baseImpl});
     source.setMaximumInactiveTileCacheSize(0);
-    auto after = makeMutable<std::vector<ImmutableSource>>(std::vector<ImmutableSource>{source.baseImpl});
+    Immutable<std::vector<ImmutableSource>> after = makeMutable<std::vector<ImmutableSource>>(std::vector<ImmutableSource>{source.baseImpl});
     const auto difference = diffSources(before, after);
     EXPECT_EQ(difference.changed.size(), 1u);
     EXPECT_TRUE(difference.added.empty());
